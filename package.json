@@ -1,0 +1,17 @@
+{
+  "name": "nkioi-comics",
+  "version": "1.0.0",
+  "description": "iPhone 15 Optimized Comic Book Viewer - 나교이 만화가게🍓",
+  "main": "app.js",
+  "scripts": {
+    "start": "npx http-server ./ -p 3000 -o"
+  },
+  "keywords": [
+    "comics",
+    "viewer",
+    "iphone15",
+    "responsive"
+  ],
+  "author": "Antigravity",
+  "license": "ISC"
+}

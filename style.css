@@ -1,0 +1,938 @@
+/* ==========================================================================
+   나교이 만화가게🍓 - 프리미엄 디자인 시스템 & 스타일시트
+   ========================================================================== */
+
+/* 1. 디자인 토큰 및 변수 선언 */
+:root {
+  /* HSL 블루베리 & 파스텔 블루 조화 컬러 팔레트 (PMS 2707 기반) */
+  --primary-strawberry: hsl(206, 50%, 55%);
+  /* 활력 있는 블루베리 블루 */
+  --primary-hover: hsl(206, 50%, 45%);
+  --pastel-pink: hsl(206, 37%, 83%);
+  /* 부드러운 파스텔 블루 (PMS 2707 오리지널) */
+  --pastel-pink-subtle: hsl(206, 35%, 96%);
+  /* 연한 파스텔 아이스 블루 */
+  --accent-cream: hsl(206, 20%, 98%);
+  /* 부드러운 아이스크림 아이보리 */
+  --accent-gold: hsl(206, 50%, 70%);
+
+  /* 다크 테마를 제외한 밝고 깨끗한 서재 분위기 톤 */
+  --text-primary: hsl(206, 50%, 15%);
+  /* 진한 네이비 블루 */
+  --text-secondary: hsl(206, 25%, 45%);
+  --text-light: hsl(0, 0%, 100%);
+
+  /* 그라디언트 */
+  --gradient-strawberry: linear-gradient(135deg, hsl(206, 40%, 80%) 0%, hsl(206, 55%, 55%) 100%);
+  --gradient-bg: linear-gradient(180deg, var(--pastel-pink-subtle) 0%, var(--accent-cream) 100%);
+
+  /* 시스템 규격 및 그림자 */
+  --radius-ios: 20px;
+  --radius-card: 16px;
+  --radius-pill: 99px;
+  --shadow-premium: 0 12px 30px rgba(74, 114, 220, 0.08), 0 4px 12px rgba(74, 114, 220, 0.04);
+  --shadow-card: 0 8px 20px rgba(74, 114, 220, 0.05);
+
+  /* 모바일 가로/세로 최적 해상도 기준 */
+  --app-max-width: 430px;
+  /* iPhone 15 Pro Max 너비 기준 */
+}
+
+/* 2. 전역 초기화 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Outfit', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #e2edf7;
+  /* 데스크톱 환경 백그라운드 (폰 화면 외곽 영역) */
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+/* 3. iPhone 15 시뮬레이션 프레임 (데스크톱 및 모바일 겸용) */
+#app-container {
+  width: 100%;
+  max-width: var(--app-max-width);
+  height: 100vh;
+  height: 100dvh;
+  background: var(--gradient-bg);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 데스크톱 등 큰 화면에서 실제 휴대폰처럼 보이기 위한 스타일링 */
+@media (min-width: 435px) {
+  #app-container {
+    height: 900px;
+    border-radius: 48px;
+    border: 12px solid #2d2627;
+    /* 폰 테두리 */
+  }
+}
+
+/* 4. DYNAMIC ISLAND (모형 터치 차단) */
+.dynamic-island {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 30px;
+  background-color: #000;
+  border-radius: 20px;
+  z-index: 1000;
+  pointer-events: none;
+  /* 클릭 관통 */
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 스마트폰 전용 뷰포트일 때는 숨기거나 간소화 */
+@media (max-width: 434px) {
+  .dynamic-island {
+    display: none;
+    /* 모바일에선 OS의 아일랜드 영역과 겹치므로 숨김 */
+  }
+}
+
+/* 5. 공통 스크린 구조 */
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  background: var(--gradient-bg);
+}
+
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+/* 6. 홈 화면 (서재 라이브러리) 디자인 */
+.library-header {
+  padding: 50px 24px 20px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(226, 237, 247, 0.8) 0%, rgba(255, 255, 255, 0) 100%);
+  position: relative;
+}
+
+.settings-btn {
+  position: absolute;
+  top: 48px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-btn:hover {
+  background-color: rgba(74, 114, 220, 0.08);
+  color: var(--primary-strawberry);
+}
+
+.app-logo {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--primary-strawberry);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: -0.5px;
+}
+
+.app-logo span {
+  display: inline-block;
+  animation: floatBlueberry 3s ease-in-out infinite;
+}
+
+@keyframes floatBlueberry {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-5px) rotate(8deg);
+  }
+}
+
+.app-subtitle {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+/* 메인 스크롤 영역 */
+.library-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 20px 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 7. 초미니멀 "만화책 불러오기" 버튼 배치 */
+.empty-state {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  width: 100%;
+}
+
+.upload-btn-wrapper {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.btn-primary {
+  background: var(--gradient-strawberry);
+  color: var(--text-light);
+  border: none;
+  padding: 18px 36px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(74, 114, 220, 0.25);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
+}
+
+.btn-primary:active {
+  transform: scale(0.96);
+  box-shadow: 0 6px 15px rgba(74, 114, 220, 0.2);
+}
+
+.btn-primary svg {
+  transition: transform 0.3s;
+}
+
+.btn-primary:hover svg {
+  transform: translateY(-2px);
+}
+
+.btn-gdrive, .btn-gdrive-more {
+  background: rgba(74, 114, 220, 0.08) !important;
+  border: 2px dashed rgba(74, 114, 220, 0.3) !important;
+  color: var(--primary-strawberry) !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-gdrive:active, .btn-gdrive-more:active {
+  background: rgba(74, 114, 220, 0.15) !important;
+  transform: scale(0.96);
+}
+
+.upload-tip {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+/* 8. 도서 서재 그리드 레이아웃 */
+.bookshelf {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  width: 100%;
+  padding-top: 10px;
+}
+
+/* 불러오기 버튼 - 그리드 전체 너비 */
+.bookshelf-add-more {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 4px;
+}
+
+.btn-load-more {
+  font-size: 0.95rem;
+  padding: 14px 32px;
+}
+
+
+.comic-card {
+  background-color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+
+.comic-card:active {
+  transform: scale(0.97);
+}
+
+.comic-card-thumbnail-wrapper {
+  width: 100%;
+  aspect-ratio: 3/4;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  background-color: #eef5fa;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.comic-card-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.comic-card:hover .comic-card-thumbnail {
+  transform: scale(1.05);
+}
+
+.comic-card-meta {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.comic-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comic-card-author {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comic-card-volumes {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background-color: rgba(74, 114, 220, 0.08);
+  color: var(--primary-strawberry);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-top: 4px;
+}
+
+/* 독서 진행 상태 라벨 */
+.comic-card-progress {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5484ad;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(74, 114, 220, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 서재 푸터 */
+.library-footer {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  border-top: 1px solid rgba(74, 114, 220, 0.05);
+}
+
+/* 9. 프리미엄 만화 뷰어 화면 */
+#viewer-screen {
+  background-color: #0b0708;
+  /* 만화 집중을 위한 깊은 블랙 배경 */
+}
+
+/* 뷰어 로더 */
+.viewer-loader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(11, 7, 8, 0.95);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  gap: 16px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.viewer-loader.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.loader-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(74, 114, 220, 0.15);
+  border-left-color: var(--primary-strawberry);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 뷰포트 */
+.comic-viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 3분할 터치 오버레이 */
+.touch-zones {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  z-index: 30;
+  /* 이미지 위에 오도록 */
+}
+
+.touch-zone {
+  height: 100%;
+  cursor: pointer;
+}
+
+#touch-left {
+  width: 30%;
+  /* 왼쪽 30% */
+}
+
+#touch-center {
+  width: 40%;
+  /* 중앙 40% */
+}
+
+#touch-right {
+  width: 30%;
+  /* 오른쪽 30% */
+}
+
+/* 캔버스 및 렌더링 스타일 */
+.comic-canvas {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  user-select: none;
+}
+
+/* 만화 단일 이미지 스타일 (가로 슬라이드 모드) */
+#comic-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  /* 터치 제스처를 위한 관통 */
+  transform-origin: center center;
+  transition: transform 0.05s ease-out;
+  /* 줌 반응용 */
+}
+
+/* 세로 웹툰 스크롤 모드 컨테이너 */
+.scroll-container {
+  display: none;
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  z-index: 25;
+}
+
+.scroll-container img {
+  width: 100%;
+  display: block;
+  height: auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* 10. 강제 가로 모드 (Rotate) 구현 스타일 */
+.rotated-landscape {
+  transform: rotate(90deg);
+  width: 100vh !important;
+  width: 100dvh !important;
+  height: 100vw !important;
+  transform-origin: center center;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* 11. 뷰어 상/하단 제어 UI 컨트롤 바 */
+.viewer-control-bar {
+  position: absolute;
+  width: 100%;
+  background: rgba(226, 237, 247, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s;
+  color: var(--text-primary);
+}
+
+.viewer-control-bar.top-bar {
+  top: 0;
+  border-bottom: 1px solid rgba(74, 114, 220, 0.08);
+  padding-top: calc(12px + env(safe-area-inset-top));
+  /* iOS 노치 대응 */
+  transform: translateY(0);
+}
+
+.viewer-control-bar.bottom-bar {
+  bottom: 0;
+  border-top: 1px solid rgba(74, 114, 220, 0.08);
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  /* iOS 홈버튼 대응 */
+  transform: translateY(0);
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 전체화면 몰입 시 UI 감추기 클래스 */
+.fullscreen-active .top-bar {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fullscreen-active .bottom-bar {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 12. 뷰어 내부 조작 요소 세부 스타일 */
+.top-left-controls,
+.top-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-btn {
+  background: rgba(74, 114, 220, 0.05);
+  border: 1px solid rgba(74, 114, 220, 0.1);
+  color: var(--primary-strawberry);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: bold;
+  transition: transform 0.15s, background-color 0.2s;
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
+  background-color: rgba(74, 114, 220, 0.15);
+}
+
+/* 권수(Volume) 선택 드롭다운 버튼 */
+.volume-selector-container {
+  position: relative;
+}
+
+.volume-select-btn {
+  background: var(--gradient-strawberry);
+  color: var(--text-light);
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(74, 114, 220, 0.15);
+  transition: background 0.2s;
+}
+
+.volume-select-btn:active {
+  transform: scale(0.95);
+}
+
+.chevron-icon {
+  transition: transform 0.25s;
+}
+
+.volume-selector-container.open .chevron-icon {
+  transform: rotate(180deg);
+}
+
+/* 드롭다운 시트 */
+.volume-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background-color: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(74, 114, 220, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  width: 140px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  z-index: 60;
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(10px);
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.volume-dropdown.active {
+  display: flex;
+}
+
+.volume-item {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.volume-item:hover,
+.volume-item.selected {
+  background-color: rgba(74, 114, 220, 0.08);
+  color: var(--primary-strawberry);
+}
+
+.volume-item:not(:last-child) {
+  border-bottom: 1px solid rgba(74, 114, 220, 0.05);
+}
+
+/* 하단 게이지 바(슬라이더) 스타일링 */
+.gauge-bar-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-indicator {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary-strawberry);
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.slider-container {
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.gauge-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(74, 114, 220, 0.1);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 5;
+}
+
+/* 슬라이더 손잡이 (Thumb) */
+.gauge-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-strawberry);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(74, 114, 220, 0.4);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.gauge-slider::-webkit-slider-thumb:active {
+  transform: scale(1.2);
+}
+
+/* 진행 상황 채우기 트랙 */
+.gauge-track-progress {
+  position: absolute;
+  left: 0;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-strawberry);
+  pointer-events: none;
+  z-index: 4;
+  width: 0%;
+}
+
+/* 눈의 피로를 덜어주는 눈 보호 필터 (Dimmer) */
+#comic-viewport::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.08);
+  /* 8% 정도 톤 다운 필터 */
+  pointer-events: none;
+  z-index: 28;
+  mix-blend-mode: multiply;
+}
+
+/* 13. 독서 이어보기 선택 모달 */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(11, 7, 8, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-box {
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 28px;
+  padding: 30px 24px;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2);
+}
+
+@keyframes scaleUp {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-strawberry {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  animation: wobble 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes wobble {
+
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+
+  15% {
+    transform: rotate(-10deg);
+  }
+
+  30% {
+    transform: rotate(10deg);
+  }
+
+  45% {
+    transform: rotate(-5deg);
+  }
+
+  60% {
+    transform: rotate(5deg);
+  }
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--primary-strawberry);
+  margin-bottom: 8px;
+}
+
+.modal-desc {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.modal-btn:active {
+  transform: scale(0.97);
+}
+
+.modal-btn.btn-primary {
+  background: var(--gradient-strawberry);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 114, 220, 0.2);
+}
+
+.modal-btn.btn-secondary {
+  background-color: rgba(74, 114, 220, 0.06);
+  color: var(--primary-strawberry);
+  border: 1px solid rgba(74, 114, 220, 0.1);
+}
+
+.settings-modal-box {
+  max-width: 360px !important;
+}
+
+.settings-form input {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.settings-form input:focus {
+  border-color: var(--primary-strawberry) !important;
+  box-shadow: 0 0 0 3px rgba(74, 114, 220, 0.15) !important;
+}
