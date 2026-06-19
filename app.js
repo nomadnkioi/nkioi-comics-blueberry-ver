@@ -505,6 +505,7 @@ async function processUploadedFiles(files) {
             author: bookAuthor,
             volumes: {},
             archives: {},      // 권별 ArchiveWrapper 보관용
+            rawFiles: {},      // 권별 원본 파일/Blob 보관용 (메모리 재건축용)
             volumeTitles: {}, // 각 권의 고유 제목 매핑용
             volumeUnits: {},  // 각 권의 단위(권/화) 매핑용
             detectedVolumesInfo: {}
@@ -544,6 +545,7 @@ async function processUploadedFiles(files) {
             // 온디맨드 방식으로 경로 매핑만 진행
             bookGroupMap[groupKey].volumes[volNum] = paths.map(p => ({ path: p, url: null }));
             bookGroupMap[groupKey].archives[volNum] = archive;
+            bookGroupMap[groupKey].rawFiles[volNum] = file; // 폴더 분할인 경우 원본 zip 파일 공유
           }
         } 
         // 케이스 B: 중첩된 압축 파일들이 압축 안에 들어있는 경우
@@ -567,6 +569,7 @@ async function processUploadedFiles(files) {
             // 온디맨드 방식으로 경로 매핑만 진행
             bookGroupMap[groupKey].volumes[subMeta.volume] = subImages.map(p => ({ path: p, url: null }));
             bookGroupMap[groupKey].archives[subMeta.volume] = subArchive;
+            bookGroupMap[groupKey].rawFiles[subMeta.volume] = nzBlob; // 추출된 중첩 blob 저장
           }
         }
         // 케이스 C: 일반적인 단일 권 압축 파일인 경우
@@ -576,6 +579,7 @@ async function processUploadedFiles(files) {
           // 온디맨드 방식으로 경로 매핑만 진행
           bookGroupMap[groupKey].volumes[meta.volume] = imageFiles.map(p => ({ path: p, url: null }));
           bookGroupMap[groupKey].archives[meta.volume] = archive;
+          bookGroupMap[groupKey].rawFiles[meta.volume] = file; // 원본 업로드 file 저장
         }
         
       } catch (err) {
@@ -608,6 +612,10 @@ async function processUploadedFiles(files) {
         state.books[existingIndex].archives = {
           ...state.books[existingIndex].archives,
           ...parsedBook.archives
+        };
+        state.books[existingIndex].rawFiles = {
+          ...state.books[existingIndex].rawFiles,
+          ...parsedBook.rawFiles
         };
         state.books[existingIndex].volumeTitles = {
           ...state.books[existingIndex].volumeTitles,
@@ -663,9 +671,26 @@ async function getPageUrl(book, volume, pageIndex) {
     return pageObj.url;
   }
 
-  // 3. 경로 정보가 있고 아카이브가 존재하는 경우 실시간 해제
-  if (pageObj.path && book.archives && book.archives[volume]) {
+  // 3. 경로 정보가 존재하는 경우 실시간 해제
+  if (pageObj.path) {
+    if (!book.archives) {
+      book.archives = {};
+    }
+    if (!book.archives[volume] && book.rawFiles && book.rawFiles[volume]) {
+      try {
+        const rawFile = book.rawFiles[volume];
+        const archive = new ArchiveWrapper(rawFile, rawFile.name || `volume_${volume}.zip`);
+        await archive.load();
+        book.archives[volume] = archive;
+      } catch (restoreErr) {
+        console.error("아카이브 메모리 복원 실패:", restoreErr);
+        return null;
+      }
+    }
+
     const archive = book.archives[volume];
+    if (!archive) return null;
+
     try {
       const blob = await archive.readAsBlob(pageObj.path);
       const tempUrl = URL.createObjectURL(blob);
@@ -965,6 +990,37 @@ function updateGaugeProgress() {
 // 뷰어 나가기 (서재 복귀)
 function exitViewer() {
   saveProgress();
+  
+  // 현재 도서의 메모리 안전 해제
+  const book = state.books.find(b => b.id === state.currentBookId);
+  if (book) {
+    // 1. 모든 volume의 모든 page blob url 명시적 해제
+    Object.keys(book.volumes).forEach(volNum => {
+      const pages = book.volumes[volNum];
+      if (pages) {
+        pages.forEach(page => {
+          if (page && page.url) {
+            URL.revokeObjectURL(page.url);
+            page.url = null;
+          }
+        });
+      }
+    });
+
+    // 2. ArchiveWrapper에 물려있는 jszip 및 원본 File 객체 해제
+    if (book.archives) {
+      Object.keys(book.archives).forEach(volNum => {
+        const archive = book.archives[volNum];
+        if (archive) {
+          archive.jszip = null;
+          archive.unarchiver = null;
+          archive.fileOrBlob = null;
+        }
+      });
+      book.archives = {}; // 아카이브 맵 비우기
+    }
+  }
+
   DOM.viewerScreen.classList.remove('active');
   DOM.libraryScreen.classList.add('active');
   state.currentBookId = null;
