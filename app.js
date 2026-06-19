@@ -270,7 +270,9 @@ function parseComicFileName(fileName) {
     volume += 0.5;
   }
   
-  return { author, title, volume, isVolumeDetected };
+  const result = { author, title, volume, isVolumeDetected, unit };
+  console.log(`[파서 디버그] 파일명: "${fileName}" -> 파싱결과:`, result);
+  return result;
 }
 
 // --- 3.5. 양면 이미지 분할 헬퍼 함수 및 이미지 처리 파이프라인 ---
@@ -1511,6 +1513,7 @@ function preloadNextPage() {
 
 // --- 14. 초기 실행 진입점 ---
 window.addEventListener('DOMContentLoaded', () => {
+  console.log("나교이 만화가게 v1.0.4 - 블루베리 에디션 로드 완료!");
   initEventListeners();
   initZoomEngine();
   renderBookshelf();
