@@ -1519,6 +1519,17 @@ function preloadNextPage() {
   }
 }
 
+// 전역 예외 발생 시 로더 강제 닫기 (외부 압축 해제 라이브러리 크래시 방어용)
+window.addEventListener('error', (event) => {
+  console.error("전역 에러 감지:", event.error);
+  hideLoader();
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error("처리되지 않은 프로미스 거부 감지:", event.reason);
+  hideLoader();
+});
+
 // --- 14. 초기 실행 진입점 ---
 window.addEventListener('DOMContentLoaded', () => {
   console.log("나교이 만화가게 v1.0.4 - 블루베리 에디션 로드 완료!");
