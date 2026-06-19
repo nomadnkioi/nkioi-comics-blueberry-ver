@@ -82,7 +82,8 @@ const DOM = {
   pickerBreadcrumb: document.getElementById('picker-breadcrumb'),
   pickerFileList: document.getElementById('picker-file-list'),
   pickerLoader: document.getElementById('picker-loader'),
-  pickerListContainer: document.querySelector('.picker-list-container')
+  pickerListContainer: document.querySelector('.picker-list-container'),
+  pickerSortSelect: document.getElementById('picker-sort-select')
 };
 
 // --- 3. 지능형 파일명/메타데이터 분석 정규식 파서 ---
@@ -1352,8 +1353,18 @@ async function loadFolderContents(folderId, isNextPage = false) {
   }
 
   try {
-    const q = `'${folderId}' in parents and trashed = false and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
-    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&orderBy=folder,name&pageSize=100`;
+    const sortVal = DOM.pickerSortSelect ? DOM.pickerSortSelect.value : 'folder,name';
+    const searchInput = document.getElementById('picker-search-input');
+    const keyword = searchInput ? searchInput.value.trim() : '';
+
+    let q = `'${folderId}' in parents and trashed = false and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
+    
+    // 서버 사이드 검색어 필터 쿼리 추가 (구글 드라이브 API name contains는 대소문자 구분 없음)
+    if (keyword) {
+      q += ` and name contains '${keyword.replace(/'/g, "\\'")}'`;
+    }
+
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&orderBy=${sortVal}&pageSize=100`;
     
     if (isNextPage && GDrive.nextPageToken) {
       url += `&pageToken=${encodeURIComponent(GDrive.nextPageToken)}`;
@@ -1390,20 +1401,11 @@ async function loadFolderContents(folderId, isNextPage = false) {
       return;
     }
 
-    // 만약 실시간 필터링 중일 수 있으므로, 현재 검색어가 입력되어 있는지 파악
-    const searchInput = document.getElementById('picker-search-input');
-    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
-
     files.forEach(file => {
       const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
       const li = document.createElement('li');
       li.className = 'picker-item';
       
-      // 검색 키워드가 있는 상태에서 추가 로딩이 되었을 때의 필터링 대응
-      if (keyword && !file.name.toLowerCase().includes(keyword)) {
-        li.style.setProperty('display', 'none', 'important');
-      }
-
       const icon = isFolder ? '📁' : '📚';
       
       let sizeStr = '';
@@ -1583,40 +1585,37 @@ function initEventListeners() {
     DOM.gdrivePickerModal.classList.remove('active');
   });
 
-  // 검색창 실시간 필터링 이벤트 추가
+  // 검색창 실시간 필터링 이벤트 추가 (디바운스 적용 서버 검색)
   const searchInput = document.getElementById('picker-search-input');
   const searchClear = document.getElementById('btn-clear-picker-search');
+  let searchDebounceTimeout = null;
+
   if (searchInput && searchClear) {
     searchInput.addEventListener('input', (e) => {
-      const keyword = e.target.value.toLowerCase().trim();
-      
-      // 글자 유무에 따라 클리어 버튼 토글
+      const keyword = e.target.value.trim();
       searchClear.style.display = keyword ? 'flex' : 'none';
       
-      // 리스트 필터링
-      const items = DOM.pickerFileList.querySelectorAll('.picker-item');
-      items.forEach(item => {
-        const nameEl = item.querySelector('.picker-item-name');
-        if (nameEl) {
-          const name = nameEl.textContent.toLowerCase();
-          if (name.includes(keyword)) {
-            item.style.setProperty('display', 'flex', 'important');
-          } else {
-            item.style.setProperty('display', 'none', 'important');
-          }
-        }
-      });
+      clearTimeout(searchDebounceTimeout);
+      
+      // 300ms 디바운스 적용하여 실시간 서버 검색 요청
+      searchDebounceTimeout = setTimeout(async () => {
+        await loadFolderContents(GDrive.lastFolderId, false);
+      }, 300);
     });
 
-    searchClear.addEventListener('click', () => {
+    searchClear.addEventListener('click', async () => {
       searchInput.value = '';
       searchInput.focus();
       searchClear.style.display = 'none';
-      
-      const items = DOM.pickerFileList.querySelectorAll('.picker-item');
-      items.forEach(item => {
-        item.style.setProperty('display', 'flex', 'important');
-      });
+      clearTimeout(searchDebounceTimeout);
+      await loadFolderContents(GDrive.lastFolderId, false);
+    });
+  }
+
+  // 정렬 셀렉트 박스 변경 이벤트 추가
+  if (DOM.pickerSortSelect) {
+    DOM.pickerSortSelect.addEventListener('change', async () => {
+      await loadFolderContents(GDrive.lastFolderId, false);
     });
   }
 

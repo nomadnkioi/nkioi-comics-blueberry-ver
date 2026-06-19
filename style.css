@@ -996,11 +996,18 @@ body {
   color: var(--primary-strawberry);
 }
 
-/* 실시간 검색 영역 스타일 */
+/* 실시간 검색 및 정렬 영역 스타일 */
 .picker-search-container {
-  position: relative;
+  display: flex;
+  gap: 8px;
   width: 100%;
   margin-bottom: 12px;
+  align-items: center;
+}
+
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
 }
 
 #picker-search-input {
@@ -1040,6 +1047,33 @@ body {
 
 .picker-search-clear:hover {
   color: var(--primary-strawberry);
+}
+
+.picker-sort-select {
+  padding: 12px 10px 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 114, 220, 0.15);
+  background-color: rgba(74, 114, 220, 0.03);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='hsl(206, 50%, 55%)' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 28px;
+}
+
+.picker-sort-select:focus {
+  border-color: var(--primary-strawberry);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(74, 114, 220, 0.15) !important;
 }
 
 /* 브레드크럼 (경로 표시) */
