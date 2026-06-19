@@ -1384,6 +1384,15 @@ async function loadFolderContents(folderId) {
           GDrive.folderPathHistory.push({ id: file.id, name: file.name });
           await loadFolderContents(file.id);
         } else {
+          // 모바일 기기의 브라우저 XHR 메모리 크래시 방지 세이프가드 (250MB 제한)
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          const fileSizeLimit = 250 * 1024 * 1024; // 250MB
+          
+          if (isMobile && file.size && parseInt(file.size, 10) > fileSizeLimit) {
+            alert(`[대용량 다운로드 제한]\n\n모바일 브라우저의 물리적 메모리 제한으로 인해, 구글 드라이브에서 250MB를 초과하는 대용량 파일을 웹앱으로 직접 다운로드할 수 없습니다.\n\n구글 드라이브 앱 등에서 기기 내에 파일을 먼저 저장(다운로드)하신 후, 메인 화면의 '기기에서 불러오기' 기능을 이용해 감상해 주시기 바랍니다.`);
+            return;
+          }
+
           // 파일 다운로드 시작
           DOM.gdrivePickerModal.classList.remove('active');
           await handleGDriveFileDownload(file.id, file.name);
