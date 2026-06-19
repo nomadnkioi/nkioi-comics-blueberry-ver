@@ -129,7 +129,7 @@ body {
 .library-header {
   padding: 50px 24px 20px;
   text-align: center;
-  background: linear-gradient(180deg, rgba(226, 237, 247, 0.8) 0%, rgba(255, 255, 255, 0) 100%);
+  background: transparent;
   position: relative;
 }
 
