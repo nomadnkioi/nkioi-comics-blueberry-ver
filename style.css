@@ -4,29 +4,29 @@
 
 /* 1. 디자인 토큰 및 변수 선언 */
 :root {
-  /* 이미지 2 기반 차콜 & 웜 베이지 호랑이 테마 */
-  --primary-strawberry: hsl(201, 45%, 15%); /* 다크 차콜 네이비 */
-  --primary-hover: hsl(201, 45%, 25%);
-  --pastel-pink: hsl(45, 25%, 85%); /* 부드러운 크림 베이지 */
-  --pastel-pink-subtle: hsl(45, 25%, 93%); /* 연한 샌드 베이지 */
-  --accent-cream: hsl(45, 20%, 97%); /* 따뜻한 아이보리 */
-  --accent-gold: hsl(35, 60%, 75%); /* 호랑이 골드 악센트 */
+  /* 사용자 지정 블루(#4d76df) 및 매칭 소프트 블루 테마 */
+  --primary-strawberry: hsl(223, 70%, 59%); /* 포인트 블루 */
+  --primary-hover: hsl(223, 70%, 49%);
+  --pastel-pink: hsl(223, 35%, 85%); 
+  --pastel-pink-subtle: hsl(223, 45%, 94%); /* 매칭 배경 (소프트 파스텔 블루) */
+  --accent-cream: hsl(223, 30%, 97%); 
+  --accent-gold: hsl(35, 60%, 75%); /* 호랑이 악센트 */
 
   /* 다크 테마를 제외한 밝고 깨끗한 서재 분위기 톤 */
-  --text-primary: hsl(201, 45%, 12%); /* 진한 차콜 텍스트 */
-  --text-secondary: hsl(201, 20%, 40%);
+  --text-primary: hsl(223, 50%, 15%); /* 진한 네이비 텍스트 */
+  --text-secondary: hsl(223, 20%, 45%);
   --text-light: hsl(0, 0%, 100%);
 
-  /* 그라디언트 */
-  --gradient-strawberry: linear-gradient(135deg, hsl(45, 30%, 82%) 0%, var(--primary-strawberry) 100%);
-  --gradient-bg: linear-gradient(180deg, var(--pastel-pink-subtle) 0%, var(--accent-cream) 100%);
+  /* 그라디언트 제거 (단색 처리) */
+  --gradient-strawberry: var(--primary-strawberry);
+  --gradient-bg: var(--pastel-pink-subtle);
 
   /* 시스템 규격 및 그림자 */
   --radius-ios: 20px;
   --radius-card: 16px;
   --radius-pill: 99px;
-  --shadow-premium: 0 12px 30px rgba(19, 38, 48, 0.08), 0 4px 12px rgba(19, 38, 48, 0.04);
-  --shadow-card: 0 8px 20px rgba(19, 38, 48, 0.05);
+  --shadow-premium: 0 12px 30px rgba(77, 118, 223, 0.08), 0 4px 12px rgba(77, 118, 223, 0.04);
+  --shadow-card: 0 8px 20px rgba(77, 118, 223, 0.05);
 
   /* 모바일 가로/세로 최적 해상도 기준 */
   --app-max-width: 430px;
@@ -45,8 +45,8 @@
 
 body {
   font-family: 'Outfit', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: #e2ded0;
-  /* 데스크톱 환경 백그라운드 (이미지2 샌드 베이지 컬러 반영) */
+  background-color: #d1daf5;
+  /* 데스크톱 환경 백그라운드 (매칭 블루 반영) */
   color: var(--text-primary);
   display: flex;
   justify-content: center;
