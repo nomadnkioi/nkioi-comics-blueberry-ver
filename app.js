@@ -2,7 +2,9 @@
    나교이 만화가게_blueberry ver. 🫐 - 프리미엄 코어 자바스크립트 엔진 (app.js)
    ========================================================================== */
 
-// --- 1. 상태 전역 객체 ---
+// --- 1. 상태 전역 객체 및 타이머 변수 ---
+let viewerLoaderTimeout = null;
+
 const state = {
   books: [],             // 로드된 도서 목록 (각 책은 { id, title, author, totalVolumes, volumes: { '1': [blobs], ... } })
   currentBookId: null,   // 현재 열려있는 도서 ID
@@ -766,6 +768,7 @@ function loadVolumeAndPage() {
   DOM.comicImage.src = pages[state.currentPage - 1];
   DOM.comicImage.onload = () => {
     hideViewerLoader();
+    preloadNextPage();
   };
   
   // 좌측 권수 이동 드롭다운 갱신
@@ -1477,11 +1480,37 @@ function hideLoader() {
 }
 
 function showViewerLoader() {
-  DOM.viewerLoader.classList.add('active');
+  if (viewerLoaderTimeout) clearTimeout(viewerLoaderTimeout);
+  viewerLoaderTimeout = setTimeout(() => {
+    DOM.viewerLoader.classList.add('active');
+  }, 200);
 }
 
 function hideViewerLoader() {
+  if (viewerLoaderTimeout) {
+    clearTimeout(viewerLoaderTimeout);
+    viewerLoaderTimeout = null;
+  }
   DOM.viewerLoader.classList.remove('active');
+}
+
+// 이전/다음 만화 페이지 백그라운드 프리로드 기능
+function preloadNextPage() {
+  const book = state.books.find(b => b.id === state.currentBookId);
+  if (!book) return;
+  const pages = book.volumes[state.currentVolume];
+  if (!pages) return;
+  
+  // 다음 페이지 프리로드 (state.currentPage는 1-based index이므로 인덱스 그대로 사용)
+  if (state.currentPage < pages.length) {
+    const nextImg = new Image();
+    nextImg.src = pages[state.currentPage];
+  }
+  // 이전 페이지 프리로드
+  if (state.currentPage > 1) {
+    const prevImg = new Image();
+    prevImg.src = pages[state.currentPage - 2];
+  }
 }
 
 // --- 14. 초기 실행 진입점 ---
