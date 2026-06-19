@@ -133,9 +133,29 @@ function parseComicFileName(fileName) {
     // 메인 텍스트 영역 (괄호 안을 제거한 영역)
     let mainText = workingName.replace(/[\(\[][^\)\]]+[\)\]]/g, " ").replace(/\s+/g, " ").trim();
     
-    // 날짜 숫자 필터링 헬퍼: 4자리 정수는 날짜로 간주하여 권수로 사용하지 않음
+    // 날짜 숫자 필터링 헬퍼: 연도, 월.일, 6자리 날짜 등은 권수로 사용하지 않음
     function isDateNumber(val) {
-      return /^\d{4}$/.test(String(val).trim());
+      const cleanVal = String(val).trim();
+      // 1. 4자리 정수 (예: 2024)
+      if (/^\d{4}$/.test(cleanVal)) return true;
+      // 2. 월.일 소수 형식 (예: 04.25, 12.31, 5.03) -> 1~12월, 1~31일 범위
+      const dateParts = cleanVal.split('.');
+      if (dateParts.length === 2) {
+        const m = parseInt(dateParts[0], 10);
+        const d = parseInt(dateParts[1], 10);
+        if (!isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return true;
+        }
+      }
+      // 3. 6자리 정수 (예: 240425) -> YYMMDD 형식의 날짜로 유추
+      if (/^\d{6}$/.test(cleanVal)) {
+        const mm = parseInt(cleanVal.substring(2, 4), 10);
+        const dd = parseInt(cleanVal.substring(4, 6), 10);
+        if (!isNaN(mm) && !isNaN(dd) && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+          return true;
+        }
+      }
+      return false;
     }
     
     // 0순위: 상권/하권 계열 키워드 우선 감지
