@@ -4,34 +4,29 @@
 
 /* 1. 디자인 토큰 및 변수 선언 */
 :root {
-  /* HSL 블루베리 & 파스텔 블루 조화 컬러 팔레트 (PMS 2707 기반) */
-  --primary-strawberry: hsl(206, 50%, 55%);
-  /* 활력 있는 블루베리 블루 */
-  --primary-hover: hsl(206, 50%, 45%);
-  --pastel-pink: hsl(206, 37%, 83%);
-  /* 부드러운 파스텔 블루 (PMS 2707 오리지널) */
-  --pastel-pink-subtle: hsl(206, 35%, 96%);
-  /* 연한 파스텔 아이스 블루 */
-  --accent-cream: hsl(206, 20%, 98%);
-  /* 부드러운 아이스크림 아이보리 */
-  --accent-gold: hsl(206, 50%, 70%);
+  /* 이미지 2 기반 차콜 & 웜 베이지 호랑이 테마 */
+  --primary-strawberry: hsl(201, 45%, 15%); /* 다크 차콜 네이비 */
+  --primary-hover: hsl(201, 45%, 25%);
+  --pastel-pink: hsl(45, 25%, 85%); /* 부드러운 크림 베이지 */
+  --pastel-pink-subtle: hsl(45, 25%, 93%); /* 연한 샌드 베이지 */
+  --accent-cream: hsl(45, 20%, 97%); /* 따뜻한 아이보리 */
+  --accent-gold: hsl(35, 60%, 75%); /* 호랑이 골드 악센트 */
 
   /* 다크 테마를 제외한 밝고 깨끗한 서재 분위기 톤 */
-  --text-primary: hsl(206, 50%, 15%);
-  /* 진한 네이비 블루 */
-  --text-secondary: hsl(206, 25%, 45%);
+  --text-primary: hsl(201, 45%, 12%); /* 진한 차콜 텍스트 */
+  --text-secondary: hsl(201, 20%, 40%);
   --text-light: hsl(0, 0%, 100%);
 
   /* 그라디언트 */
-  --gradient-strawberry: linear-gradient(135deg, hsl(206, 40%, 80%) 0%, hsl(206, 55%, 55%) 100%);
+  --gradient-strawberry: linear-gradient(135deg, hsl(45, 30%, 82%) 0%, var(--primary-strawberry) 100%);
   --gradient-bg: linear-gradient(180deg, var(--pastel-pink-subtle) 0%, var(--accent-cream) 100%);
 
   /* 시스템 규격 및 그림자 */
   --radius-ios: 20px;
   --radius-card: 16px;
   --radius-pill: 99px;
-  --shadow-premium: 0 12px 30px rgba(74, 114, 220, 0.08), 0 4px 12px rgba(74, 114, 220, 0.04);
-  --shadow-card: 0 8px 20px rgba(74, 114, 220, 0.05);
+  --shadow-premium: 0 12px 30px rgba(19, 38, 48, 0.08), 0 4px 12px rgba(19, 38, 48, 0.04);
+  --shadow-card: 0 8px 20px rgba(19, 38, 48, 0.05);
 
   /* 모바일 가로/세로 최적 해상도 기준 */
   --app-max-width: 430px;
@@ -50,8 +45,8 @@
 
 body {
   font-family: 'Outfit', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: #e2edf7;
-  /* 데스크톱 환경 백그라운드 (폰 화면 외곽 영역) */
+  background-color: #e2ded0;
+  /* 데스크톱 환경 백그라운드 (이미지2 샌드 베이지 컬러 반영) */
   color: var(--text-primary);
   display: flex;
   justify-content: center;
