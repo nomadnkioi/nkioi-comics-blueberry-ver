@@ -1,0 +1,18 @@
+{
+  "name": "나교이 만화가게",
+  "short_name": "나교이 만화",
+  "description": "iPhone Optimized Comic Book Viewer",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#e2edf7",
+  "theme_color": "#4a72dc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
