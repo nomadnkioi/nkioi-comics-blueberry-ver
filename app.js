@@ -254,8 +254,11 @@ function parseComicFileName(fileName) {
   if (!title) title = cleanName;
 
   // 번외/외전 등 키워드 감지 시 소수점(0.5)을 더해 원본 권수 바로 뒤에 정렬되도록 조정
+  // 단, "단편+외전" 이나 "본편+외전", "1권+외전" 처럼 결합되어 있는 형태는 제외함
   const hasExtraKeyword = /(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(cleanName);
-  if (hasExtraKeyword && Number.isInteger(volume)) {
+  const isCombinedExtra = /(?:\+|및|과|와)\s*(?:번외|외전|특별편|부록|sp|extra|side)/i.test(cleanName);
+  
+  if (hasExtraKeyword && !isCombinedExtra && Number.isInteger(volume)) {
     volume += 0.5;
   }
   
