@@ -94,6 +94,7 @@ function parseComicFileName(fileName) {
   let title = cleanName;
   let volume = 1;
   let isVolumeDetected = false;
+  let unit = "권";
   
   // 1. 대괄호 [작가] 또는 소괄호 (작가) 패턴 추출 (가장 처음)
   let workingName = cleanName;
@@ -167,6 +168,10 @@ function parseComicFileName(fileName) {
         let val = parseFloat(koMatch[1]);
         let raw = koMatch[0];
         
+        if (/화$/i.test(raw)) {
+          unit = "화";
+        }
+        
         const postText = text.substring(text.indexOf(raw) + raw.length);
         const preText = text.substring(0, text.indexOf(raw));
         
@@ -206,6 +211,9 @@ function parseComicFileName(fileName) {
       
       const enMatch = text.match(/(?:vol(?:\. |ume)?|v|ch(?:apter)?\.?)\s*(\d+(?:\.\d+)?)/i);
       if (enMatch) {
+        if (/ch(?:apter)?/i.test(enMatch[0])) {
+          unit = "화";
+        }
         return { val: parseFloat(enMatch[1]), raw: enMatch[0] };
       }
       
@@ -465,12 +473,14 @@ async function processUploadedFiles(files) {
           author: bookAuthor,
           volumes: {},
           volumeTitles: {}, // 각 권의 고유 제목 매핑용
+          volumeUnits: {},  // 각 권의 단위(권/화) 매핑용
           detectedVolumesInfo: {}
         };
       }
       
       bookGroupMap[groupKey].detectedVolumesInfo[meta.volume] = meta.isVolumeDetected;
       bookGroupMap[groupKey].volumeTitles[meta.volume] = meta.title;
+      bookGroupMap[groupKey].volumeUnits[meta.volume] = meta.unit || "권";
       
       // 케이스 A: 하위 폴더별로 이미지가 존재하여 여러 권으로 나뉘는 경우
       const folderGroups = {};
@@ -487,6 +497,7 @@ async function processUploadedFiles(files) {
             bookGroupMap[groupKey].detectedVolumesInfo[fVol] = folderMeta.isVolumeDetected;
           }
           bookGroupMap[groupKey].volumeTitles[fVol] = folderMeta.title;
+          bookGroupMap[groupKey].volumeUnits[fVol] = folderMeta.unit || "권";
         }
       });
 
@@ -498,7 +509,7 @@ async function processUploadedFiles(files) {
           paths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
           
           const urls = await processImagesWithSplit(archive, paths, (curr, total) => {
-            showLoader(`[폴더 그룹] ${bookTitle} ${volNum}권 처리 중... (${curr}/${total})`);
+            showLoader(`[폴더 그룹] ${bookTitle} ${volNum}${bookGroupMap[groupKey].volumeUnits[volNum] || "권"} 처리 중... (${curr}/${total})`);
           });
           bookGroupMap[groupKey].volumes[volNum] = urls;
         }
@@ -519,9 +530,10 @@ async function processUploadedFiles(files) {
           const subMeta = parseComicFileName(nzPath);
           bookGroupMap[groupKey].detectedVolumesInfo[subMeta.volume] = subMeta.isVolumeDetected;
           bookGroupMap[groupKey].volumeTitles[subMeta.volume] = subMeta.title;
+          bookGroupMap[groupKey].volumeUnits[subMeta.volume] = subMeta.unit || "권";
           
           const urls = await processImagesWithSplit(subArchive, subImages, (curr, total) => {
-            showLoader(`[중첩 압축] ${subMeta.title} ${subMeta.volume}권 처리 중... (${curr}/${total})`);
+            showLoader(`[중첩 압축] ${subMeta.title} ${subMeta.volume}${subMeta.unit || "권"} 처리 중... (${curr}/${total})`);
           });
           bookGroupMap[groupKey].volumes[subMeta.volume] = urls;
         }
@@ -531,7 +543,7 @@ async function processUploadedFiles(files) {
         imageFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
         
         const urls = await processImagesWithSplit(archive, imageFiles, (curr, total) => {
-          showLoader(`${meta.title} ${meta.volume}권 처리 중... (${curr}/${total})`);
+          showLoader(`${meta.title} ${meta.volume}${meta.unit || "권"} 처리 중... (${curr}/${total})`);
         });
         bookGroupMap[groupKey].volumes[meta.volume] = urls;
       }
@@ -566,6 +578,10 @@ async function processUploadedFiles(files) {
       state.books[existingIndex].volumeTitles = {
         ...state.books[existingIndex].volumeTitles,
         ...parsedBook.volumeTitles
+      };
+      state.books[existingIndex].volumeUnits = {
+        ...state.books[existingIndex].volumeUnits,
+        ...parsedBook.volumeUnits
       };
       state.books[existingIndex].totalVolumes = Math.max(
         state.books[existingIndex].totalVolumes,
@@ -685,32 +701,32 @@ function startReading(volume, page) {
 }
 
 // --- 6.5. 권수 레이블 및 정렬용 포맷터 ---
-function formatVolumeName(volNum, title) {
+function formatVolumeName(volNum, title, unit = "권") {
   const num = Number(volNum);
   const base = Math.floor(num);
   const tolerance = 0.001;
   const decimal = num - base;
   
   if (Math.abs(decimal - 0.1) < tolerance) {
-    return `${base}권 상`;
+    return `${base}${unit} 상`;
   }
   if (Math.abs(decimal - 0.2) < tolerance) {
-    return `${base}권 하`;
+    return `${base}${unit} 하`;
   }
   if (Math.abs(decimal - 0.5) < tolerance) {
-    return `${base}권 외전`;
+    return `${base}${unit} 외전`;
   }
   
   if (Number.isInteger(num)) {
-    return `${volNum}권`;
+    return `${volNum}${unit}`;
   }
   const text = title || '';
-  if (/(번외)/i.test(text)) return `${base}권 번외`;
-  if (/(외전)/i.test(text)) return `${base}권 외전`;
-  if (/(특별편)/i.test(text)) return `${base}권 특별편`;
-  if (/(부록)/i.test(text)) return `${base}권 부록`;
-  if (/(\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(text)) return `${base}권 외전`;
-  return `${volNum}권`;
+  if (/(번외)/i.test(text)) return `${base}${unit} 번외`;
+  if (/(외전)/i.test(text)) return `${base}${unit} 외전`;
+  if (/(특별편)/i.test(text)) return `${base}${unit} 특별편`;
+  if (/(부록)/i.test(text)) return `${base}${unit} 부록`;
+  if (/(\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(text)) return `${base}${unit} 외전`;
+  return `${volNum}${unit}`;
 }
 
 // --- 7. 만화 페이지 렌더링 & 로딩 ---
@@ -731,7 +747,7 @@ function loadVolumeAndPage() {
   if (state.currentPage > pages.length) state.currentPage = pages.length;
   
   // 헤더 권수 레이블 동기화
-  DOM.currentVolumeLabel.textContent = formatVolumeName(state.currentVolume, book.volumeTitles?.[state.currentVolume]);
+  DOM.currentVolumeLabel.textContent = formatVolumeName(state.currentVolume, book.volumeTitles?.[state.currentVolume], book.volumeUnits?.[state.currentVolume]);
   
   // 슬라이더 및 페이지 텍스트 정보 동기화
   DOM.viewerPageSlider.max = pages.length;
@@ -769,7 +785,7 @@ function renderVolumeDropdown(book) {
     btn.className = `volume-item ${isSelected ? 'selected' : ''}`;
     
     const customTitle = book.volumeTitles?.[volNum] || '';
-    const displayVol = formatVolumeName(volNum, customTitle);
+    const displayVol = formatVolumeName(volNum, customTitle, book.volumeUnits?.[volNum]);
     btn.textContent = customTitle ? `${displayVol}: ${customTitle}` : displayVol;
     
     btn.addEventListener('click', () => {
