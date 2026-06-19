@@ -90,6 +90,31 @@ function parseComicFileName(fileName) {
   let cleanName = fileName.replace(/\.[^/.]+$/, "").trim();
   cleanName = cleanName.replace(/^['"]+|['"]+$/g, "").trim();
   
+  // 날짜 숫자 필터링 헬퍼: 연도, 월.일, 6자리 날짜 등은 권수로 사용하지 않음
+  function isDateNumber(val) {
+    const cleanVal = String(val).trim();
+    // 1. 4자리 정수 (예: 2024)
+    if (/^\d{4}$/.test(cleanVal)) return true;
+    // 2. 월.일 소수 형식 (예: 04.25, 12.31, 5.03) -> 1~12월, 1~31일 범위
+    const dateParts = cleanVal.split('.');
+    if (dateParts.length === 2) {
+      const m = parseInt(dateParts[0], 10);
+      const d = parseInt(dateParts[1], 10);
+      if (!isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return true;
+      }
+    }
+    // 3. 6자리 정수 (예: 240425) -> YYMMDD 형식의 날짜로 유추
+    if (/^\d{6}$/.test(cleanVal)) {
+      const mm = parseInt(cleanVal.substring(2, 4), 10);
+      const dd = parseInt(cleanVal.substring(4, 6), 10);
+      if (!isNaN(mm) && !isNaN(dd) && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
   let author = "작자미상";
   let title = cleanName;
   let volume = 1;
@@ -119,7 +144,7 @@ function parseComicFileName(fileName) {
   
   const leadingNumMatch = workingName.match(/^(\d+(?:\.\d+)?)(?:\s*[\.\-\_]\s*|\s+)(.*)$/);
   
-  if (leadingNumMatch && !hasExplicitVolumeLater) {
+  if (leadingNumMatch && !hasExplicitVolumeLater && !isDateNumber(leadingNumMatch[1])) {
     volume = parseFloat(leadingNumMatch[1]);
     title = leadingNumMatch[2].trim();
     isVolumeDetected = true;
@@ -134,31 +159,6 @@ function parseComicFileName(fileName) {
     
     // 메인 텍스트 영역 (괄호 안을 제거한 영역)
     let mainText = workingName.replace(/[\(\[][^\)\]]+[\)\]]/g, " ").replace(/\s+/g, " ").trim();
-    
-    // 날짜 숫자 필터링 헬퍼: 연도, 월.일, 6자리 날짜 등은 권수로 사용하지 않음
-    function isDateNumber(val) {
-      const cleanVal = String(val).trim();
-      // 1. 4자리 정수 (예: 2024)
-      if (/^\d{4}$/.test(cleanVal)) return true;
-      // 2. 월.일 소수 형식 (예: 04.25, 12.31, 5.03) -> 1~12월, 1~31일 범위
-      const dateParts = cleanVal.split('.');
-      if (dateParts.length === 2) {
-        const m = parseInt(dateParts[0], 10);
-        const d = parseInt(dateParts[1], 10);
-        if (!isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-          return true;
-        }
-      }
-      // 3. 6자리 정수 (예: 240425) -> YYMMDD 형식의 날짜로 유추
-      if (/^\d{6}$/.test(cleanVal)) {
-        const mm = parseInt(cleanVal.substring(2, 4), 10);
-        const dd = parseInt(cleanVal.substring(4, 6), 10);
-        if (!isNaN(mm) && !isNaN(dd) && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
-          return true;
-        }
-      }
-      return false;
-    }
     
     // 0순위: 상권/하권 계열 키워드 우선 감지
     function extractSangHa(text) {
