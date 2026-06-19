@@ -111,9 +111,13 @@ function parseComicFileName(fileName) {
   workingName = workingName.replace(/[\s\-_]*[\(\[]?\d{4}[\)\]]?\s*$/, "").trim();
   
   // 앞부분에 "숫자 + 구분자"가 있는지 검사 (예: "1 봄의 잔물결", "2 - 겨울의 잔물결", "1.5 봄의 잔물결")
+  // 단, 뒤쪽에 명시적인 권수 표현이 있다면 앞의 숫자는 무시함
+  const hasExplicitVolumeLater = /(?:제\s*)?(\d+(?:\.\d+)?)\s*(?:권|화)/i.test(workingName) || 
+                                 /(?:vol(?:\. |ume)?|v|ch(?:apter)?\.?)\s*(\d+(?:\.\d+)?)/i.test(workingName);
+  
   const leadingNumMatch = workingName.match(/^(\d+(?:\.\d+)?)(?:\s*[\.\-\_]\s*|\s+)(.*)$/);
   
-  if (leadingNumMatch) {
+  if (leadingNumMatch && !hasExplicitVolumeLater) {
     volume = parseFloat(leadingNumMatch[1]);
     title = leadingNumMatch[2].trim();
     isVolumeDetected = true;
@@ -155,12 +159,38 @@ function parseComicFileName(fileName) {
     function extractVolume(text) {
       if (!text) return null;
       
-      const sangHaResult = extractSangHa(text);
-      if (sangHaResult) return sangHaResult;
-      
       const koMatch = text.match(/(?:제\s*)?(\d+(?:\.\d+)?)\s*(?:권|화)/i);
       if (koMatch && !isDateNumber(koMatch[1])) {
-        return { val: parseFloat(koMatch[1]), raw: koMatch[0] };
+        let val = parseFloat(koMatch[1]);
+        let raw = koMatch[0];
+        
+        const postText = text.substring(text.indexOf(raw) + raw.length);
+        const preText = text.substring(0, text.indexOf(raw));
+        
+        const sangPattern = /(?:상권|上권|(?<=[^가-힣a-zA-Z0-9]|^)(?:상|上)(?=[^가-힣a-zA-Z0-9]|$))/;
+        const haPattern = /(?:하권|下권|(?<=[^가-힣a-zA-Z0-9]|^)(?:하|下)(?=[^가-힣a-zA-Z0-9]|$))/;
+        
+        if (sangPattern.test(postText)) {
+          val += 0.1;
+          raw += postText.match(sangPattern)[0];
+        } else if (sangPattern.test(preText)) {
+          val += 0.1;
+          raw = preText.match(sangPattern)[0] + raw;
+        } else if (haPattern.test(postText)) {
+          val += 0.2;
+          raw += postText.match(haPattern)[0];
+        } else if (haPattern.test(preText)) {
+          val += 0.2;
+          raw = preText.match(haPattern)[0] + raw;
+        }
+        
+        return { val, raw };
+      }
+      
+      const sangHaResult = extractSangHa(text);
+      if (sangHaResult) {
+        const val = sangHaResult.val === 1 ? 1.1 : 1.2;
+        return { val, raw: sangHaResult.raw };
       }
       
       const enMatch = text.match(/(?:vol(?:\. |ume)?|v|ch(?:apter)?\.?)\s*(\d+(?:\.\d+)?)/i);
@@ -209,10 +239,15 @@ function parseComicFileName(fileName) {
   }
   
   title = title.replace(/^[-_\s\:\(\)]+/, "").replace(/[-_\s\:\(\)]+$/, "").trim();
+  
+  // 제목 맨 앞의 불필요한 일련번호/접두사 제거 (예: "5.동급생" -> "동급생", "6 - 동급생" -> "동급생")
+  title = title.replace(/^(\d+(?:\.\d+)?)(?:\s*[\.\-\_]\s*|\s+)/, "");
+  
+  title = title.replace(/^[-_\s\:\(\)]+/, "").replace(/[-_\s\:\(\)]+$/, "").trim();
   if (!title) title = cleanName;
 
   // 번외/외전 등 키워드 감지 시 소수점(0.5)을 더해 원본 권수 바로 뒤에 정렬되도록 조정
-  const hasExtraKeyword = /(?:번외|외전|특별편|부록|sp|extra|side|비하인드)/i.test(cleanName);
+  const hasExtraKeyword = /(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(cleanName);
   if (hasExtraKeyword && Number.isInteger(volume)) {
     volume += 0.5;
   }
@@ -642,16 +677,29 @@ function startReading(volume, page) {
 // --- 6.5. 권수 레이블 및 정렬용 포맷터 ---
 function formatVolumeName(volNum, title) {
   const num = Number(volNum);
+  const base = Math.floor(num);
+  const tolerance = 0.001;
+  const decimal = num - base;
+  
+  if (Math.abs(decimal - 0.1) < tolerance) {
+    return `${base}권 상`;
+  }
+  if (Math.abs(decimal - 0.2) < tolerance) {
+    return `${base}권 하`;
+  }
+  if (Math.abs(decimal - 0.5) < tolerance) {
+    return `${base}권 외전`;
+  }
+  
   if (Number.isInteger(num)) {
     return `${volNum}권`;
   }
-  const base = Math.floor(num);
   const text = title || '';
   if (/(번외)/i.test(text)) return `${base}권 번외`;
   if (/(외전)/i.test(text)) return `${base}권 외전`;
   if (/(특별편)/i.test(text)) return `${base}권 특별편`;
   if (/(부록)/i.test(text)) return `${base}권 부록`;
-  if (/(sp|extra|side|비하인드)/i.test(text)) return `${base}권 외전`;
+  if (/(\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(text)) return `${base}권 외전`;
   return `${volNum}권`;
 }
 
