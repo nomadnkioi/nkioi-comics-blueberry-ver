@@ -416,6 +416,13 @@ async function processImagesWithSplit(archive, paths, onProgress) {
 async function processUploadedFiles(files) {
   showLoader("도서를 분석 중입니다...");
   
+  // [전역 세이프가드 타이머] 외부 라이브러리(libunrar 등) 비동기 락 방지용 (12초)
+  const safeguardTimer = setTimeout(() => {
+    hideLoader();
+    renderBookshelf();
+    alert("도서 분석 중 시간 초과가 발생했습니다.\n일부 손상된 압축 파일(RAR 등)이 있거나 지원하지 않는 규격일 수 있습니다.");
+  }, 12000);
+  
   const bookGroupMap = {};
   let batchGroupKey = null;
   let batchBookTitle = null;
@@ -542,7 +549,7 @@ async function processUploadedFiles(files) {
             const nzBlob = await archive.readAsBlob(nzPath);
             
             const subArchive = new ArchiveWrapper(nzBlob, nzPath);
-            await subArchive.load();
+            await timeoutPromise(subArchive.load(), 10000, "중첩 압축 파일을 해제하는 도중 백그라운드 스레드 오류가 발생했거나 시간이 초과되었습니다.");
             const subAllFiles = subArchive.filePaths;
             
             const subImages = subAllFiles.filter(p => /\.(jpg|jpeg|png|webp|gif)$/i.test(p));
@@ -620,6 +627,7 @@ async function processUploadedFiles(files) {
     console.error("도서 처리 치명적 오류:", globalErr);
     alert(`도서를 처리하는 과정에서 해결할 수 없는 시스템 에러가 발생했습니다:\n${globalErr.message}`);
   } finally {
+    clearTimeout(safeguardTimer);
     hideLoader();
     renderBookshelf();
   }
