@@ -1498,7 +1498,7 @@ function renderFilteredFileList() {
     return;
   }
 
-  // 2. 정렬 (폴더 우선, 그 후 옵션에 따라 최신순/이름순)
+  // 2. 정렬 (폴더 우선, 그 후 옵션에 따라 이름 오름/내림, 수정 오름/내림)
   filtered.sort((a, b) => {
     const isFolderA = a.mimeType === 'application/vnd.google-apps.folder';
     const isFolderB = b.mimeType === 'application/vnd.google-apps.folder';
@@ -1506,10 +1506,16 @@ function renderFilteredFileList() {
     if (isFolderA && !isFolderB) return -1;
     if (!isFolderA && isFolderB) return 1;
     
-    if (sortVal === 'folder,modifiedTime desc') {
+    if (sortVal === 'folder,name desc') {
+      return b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortVal === 'folder,modifiedTime desc') {
       const timeA = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
       const timeB = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
       return timeB - timeA;
+    } else if (sortVal === 'folder,modifiedTime asc') {
+      const timeA = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
+      const timeB = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
+      return timeA - timeB;
     } else {
       return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     }
