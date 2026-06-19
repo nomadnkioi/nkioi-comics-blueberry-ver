@@ -795,7 +795,7 @@ function renderBookshelf() {
         <polyline points="17 8 12 3 7 8"></polyline>
         <line x1="12" y1="3" x2="12" y2="15"></line>
       </svg>
-      <span>기기에서 불러오기</span>
+      <span>기기에서 불러오기 🐯</span>
     </button>
     <button class="btn-primary btn-load-more btn-gdrive-more" id="btn-gdrive-more" style="margin-top: 10px; width: 100%; justify-content: center;">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -803,7 +803,7 @@ function renderBookshelf() {
       </svg>
       <span>구글 드라이브 연결</span>
     </button>
-    <p class="add-more-tip" style="display: none; font-size: 14px; margin-top: 12px; color: var(--accent-gold); font-weight: 500; text-align: center; width: 100%;"></p>
+    <p class="add-more-tip" style="display: none; font-size: 14px; margin-top: 12px; color: var(--text-primary); font-weight: 600; text-align: center; width: 100%;"></p>
   `;
   addMoreWrapper.querySelector('#btn-load-more').addEventListener('click', () => DOM.comicsFileInput.click());
   addMoreWrapper.querySelector('#btn-gdrive-more').addEventListener('click', () => handleGDriveButtonClick());
@@ -1746,8 +1746,11 @@ function initEventListeners() {
 // --- 13. 범용 UI 로더 애니메이션 제어 ---
 function showLoader(message = "분석 중...") {
   const tip = document.querySelector('.upload-tip');
-  if (tip) tip.textContent = message;
-  
+  if (tip) {
+    tip.textContent = message;
+    tip.style.display = 'block';
+  }
+
   const addMoreTip = document.querySelector('.add-more-tip');
   const btnLoadMore = document.getElementById('btn-load-more');
   if (addMoreTip) {
@@ -1762,15 +1765,11 @@ function showLoader(message = "분석 중...") {
 
 function hideLoader() {
   const tip = document.querySelector('.upload-tip');
-  if (tip) tip.innerHTML = `
-    압축 파일(.zip)을 선택해 주세요.<br>
-    여러 권의 압축 파일을 한 번에 선택할 수 있습니다.<br>
-    <span style="display: block; margin-top: 10px; font-size: 0.78rem; opacity: 0.8; font-weight: 500;">
-      💡 <b>구글 드라이브(Google Drive) 연동 팁:</b><br>
-      Client ID 및 API Key 설정이 되어 있다면 로그인 후 바로 드라이브에서 가져올 수 있습니다. (우측 상단 ⚙️ 설정에서 입력)
-    </span>
-  `;
-  
+  if (tip) {
+    tip.textContent = '';
+    tip.style.display = 'none';
+  }
+
   const addMoreTip = document.querySelector('.add-more-tip');
   const btnLoadMore = document.getElementById('btn-load-more');
   if (addMoreTip) {
