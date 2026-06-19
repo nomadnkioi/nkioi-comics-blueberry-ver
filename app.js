@@ -606,7 +606,6 @@ async function processUploadedFiles(files) {
     renderBookshelf();
   }
 }
-}
 
 // --- 5. 서재 렌더링 엔진 ---
 function renderBookshelf() {
