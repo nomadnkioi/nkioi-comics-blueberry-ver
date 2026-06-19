@@ -1,5 +1,5 @@
 /* ==========================================================================
-   나교이 만화가게_bluberry ver. 🫐 - 프리미엄 코어 자바스크립트 엔진 (app.js)
+   나교이 만화가게_blueberry ver. 🫐 - 프리미엄 코어 자바스크립트 엔진 (app.js)
    ========================================================================== */
 
 // --- 1. 상태 전역 객체 ---
@@ -72,7 +72,14 @@ const DOM = {
   btnLoadGDrive: document.getElementById('btn-load-gdrive'),
   inputClientId: document.getElementById('input-client-id'),
   inputApiKey: document.getElementById('input-api-key'),
-  gdriveStatusInfo: document.getElementById('gdrive-status-info')
+  gdriveStatusInfo: document.getElementById('gdrive-status-info'),
+  
+  // 커스텀 구글 드라이브 피커
+  gdrivePickerModal: document.getElementById('gdrive-picker-modal'),
+  btnClosePicker: document.getElementById('btn-close-picker'),
+  pickerBreadcrumb: document.getElementById('picker-breadcrumb'),
+  pickerFileList: document.getElementById('picker-file-list'),
+  pickerLoader: document.getElementById('picker-loader')
 };
 
 // --- 3. 지능형 파일명/메타데이터 분석 정규식 파서 ---
@@ -1035,82 +1042,137 @@ async function handleGDriveButtonClick() {
   }
 }
 
-function openGooglePicker() {
-  try {
-    if (typeof google === 'undefined' || !google.picker || !GDrive.accessToken) {
-      alert("구글 파일 선택기 라이브러리를 준비 중입니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-    
-    // 안전한 ViewMode 값 매핑
-    const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
-      .setMimeTypes('application/zip,application/x-zip-compressed,application/x-zip,application/x-cbz,application/vnd.rar,application/x-rar-compressed,application/vnd.google-apps.folder')
-      .setSelectFolderEnabled(false)
-      .setParent(GDrive.lastFolderId || 'root')
-      .setIncludeFolders(true);
-      
-    if (typeof view.setMode === 'function') {
-      const mode = (google.picker.DocsViewMode && google.picker.DocsViewMode.LIST) || 
-                   (google.picker.ViewMode && google.picker.ViewMode.LIST) || 
-                   'list';
-      view.setMode(mode);
-    }
-      
-    const picker = new google.picker.PickerBuilder()
-      .addView(view)
-      .setOAuthToken(GDrive.accessToken)
-      .setDeveloperKey(GDrive.apiKey)
-      .setCallback(pickerCallback)
-      .setTitle("가져올 만화책 파일 선택 (.zip, .cbz, .rar, .cbr)")
-      .build();
-      
-    picker.setVisible(true);
-  } catch (err) {
-    console.error("선택기 열기 오류:", err);
-    alert("구글 드라이브 선택기를 여는 도중 오류가 발생했습니다:\n" + err.message);
-  }
+// 커스텀 피커 경로 히스토리
+GDrive.folderPathHistory = [];
+
+async function openGooglePicker() {
+  GDrive.folderPathHistory = [{ id: GDrive.lastFolderId || 'root', name: GDrive.lastFolderId === 'root' || !GDrive.lastFolderId ? 'My Drive' : '이전 폴더' }];
+  DOM.gdrivePickerModal.classList.add('active');
+  await loadFolderContents(GDrive.lastFolderId || 'root');
 }
 
-async function pickerCallback(data) {
-  if (data.action === google.picker.Action.PICKED) {
-    const doc = data.docs[0];
-    const fileId = doc.id;
-    const fileName = doc.name;
+function updateBreadcrumb() {
+  DOM.pickerBreadcrumb.innerHTML = '';
+  GDrive.folderPathHistory.forEach((folder, idx) => {
+    const span = document.createElement('span');
+    span.className = 'breadcrumb-item';
+    span.textContent = folder.name;
+    span.dataset.folderId = folder.id;
     
-    // 최근 접근 폴더 ID 비동기 갱신 (Drive API 직접 호출하여 부모 폴더 확보)
-    fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`, {
+    span.addEventListener('click', async () => {
+      // 클릭한 위치 이후의 히스토리 제거
+      GDrive.folderPathHistory = GDrive.folderPathHistory.slice(0, idx + 1);
+      await loadFolderContents(folder.id);
+    });
+    DOM.pickerBreadcrumb.appendChild(span);
+  });
+}
+
+async function loadFolderContents(folderId) {
+  const loader = DOM.pickerLoader;
+  const list = DOM.pickerFileList;
+  
+  loader.style.display = 'flex';
+  list.innerHTML = '';
+  
+  GDrive.lastFolderId = folderId;
+  localStorage.setItem('nkioi-gdrive-last-folder-id', folderId);
+  updateBreadcrumb();
+
+  try {
+    const q = `'${folderId}' in parents and trashed = false and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size)&orderBy=folder,name&pageSize=100`;
+    
+    const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${GDrive.accessToken}`
       }
-    })
-    .then(res => res.json())
-    .then(meta => {
-      if (meta.parents && meta.parents.length > 0) {
-        const pId = meta.parents[0];
-        GDrive.lastFolderId = pId;
-        localStorage.setItem('nkioi-gdrive-last-folder-id', pId);
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // 토큰 만료
+        logoutGDrive();
+        DOM.gdrivePickerModal.classList.remove('active');
+        alert("구글 인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
+        return;
       }
-    })
-    .catch(e => console.warn("부모 폴더 ID 조회 실패:", e));
-    
-    showLoader(`구글 드라이브에서 파일 다운로드 중...\n(${fileName}) - 0%`);
-    
-    try {
-      const blob = await downloadGDriveFile(fileId, (percent) => {
-        showLoader(`구글 드라이브에서 파일 다운로드 중...\n(${fileName}) - ${percent}%`);
-      });
-      let finalName = fileName;
-      if (!/\.(zip|cbz|rar|cbr)$/i.test(finalName)) {
-        finalName += '.zip';
-      }
-      const fileObject = new File([blob], finalName, { type: blob.type });
-      await processUploadedFiles([fileObject]);
-    } catch (err) {
-      console.error("파일 다운로드 실패:", err);
-      alert("파일을 가져오는데 실패했습니다: " + err.message);
-    } finally {
-      hideLoader();
+      throw new Error(`API 오류 (HTTP ${response.status})`);
     }
+
+    const data = await response.json();
+    const files = data.files || [];
+
+    if (files.length === 0) {
+      list.innerHTML = `<li class="picker-empty-msg">이 폴더에 지원되는 만화책 파일이 없습니다.</li>`;
+      return;
+    }
+
+    files.forEach(file => {
+      const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+      const li = document.createElement('li');
+      li.className = 'picker-item';
+      
+      const icon = isFolder ? '📁' : '📚';
+      
+      // 파일 크기 포맷
+      let sizeStr = '';
+      if (!isFolder && file.size) {
+        const sizeBytes = parseInt(file.size, 10);
+        if (sizeBytes > 1024 * 1024) {
+          sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+        } else {
+          sizeStr = `${(sizeBytes / 1024).toFixed(0)} KB`;
+        }
+      }
+
+      li.innerHTML = `
+        <div class="picker-icon">${icon}</div>
+        <div class="picker-name-wrapper">
+          <div class="picker-item-name" title="${file.name}">${file.name}</div>
+          ${sizeStr ? `<div class="picker-item-size">${sizeStr}</div>` : ''}
+        </div>
+      `;
+
+      li.addEventListener('click', async () => {
+        if (isFolder) {
+          GDrive.folderPathHistory.push({ id: file.id, name: file.name });
+          await loadFolderContents(file.id);
+        } else {
+          // 파일 다운로드 시작
+          DOM.gdrivePickerModal.classList.remove('active');
+          await handleGDriveFileDownload(file.id, file.name);
+        }
+      });
+
+      list.appendChild(li);
+    });
+
+  } catch (err) {
+    console.error("폴더 목록 로드 실패:", err);
+    list.innerHTML = `<li class="picker-empty-msg" style="color: #dc3545;">목록 로드 중 오류가 발생했습니다.<br>${err.message}</li>`;
+  } finally {
+    loader.style.display = 'none';
+  }
+}
+
+async function handleGDriveFileDownload(fileId, fileName) {
+  showLoader(`구글 드라이브에서 파일 다운로드 중...\n(${fileName}) - 0%`);
+  try {
+    const blob = await downloadGDriveFile(fileId, (percent) => {
+      showLoader(`구글 드라이브에서 파일 다운로드 중...\n(${fileName}) - ${percent}%`);
+    });
+    let finalName = fileName;
+    if (!/\.(zip|cbz|rar|cbr)$/i.test(finalName)) {
+      finalName += '.zip';
+    }
+    const fileObject = new File([blob], finalName, { type: blob.type });
+    await processUploadedFiles([fileObject]);
+  } catch (err) {
+    console.error("파일 다운로드 실패:", err);
+    alert("파일을 가져오는데 실패했습니다: " + err.message);
+  } finally {
+    hideLoader();
   }
 }
 
@@ -1211,6 +1273,9 @@ function initEventListeners() {
   });
   if (DOM.btnGDriveLogout) DOM.btnGDriveLogout.addEventListener('click', logoutGDrive);
   if (DOM.btnLoadGDrive) DOM.btnLoadGDrive.addEventListener('click', handleGDriveButtonClick);
+  if (DOM.btnClosePicker) DOM.btnClosePicker.addEventListener('click', () => {
+    DOM.gdrivePickerModal.classList.remove('active');
+  });
 
   // G. 하단 게이지 바 터치/드래그 즉시 네비게이션 제어
   DOM.viewerPageSlider.addEventListener('input', (e) => {

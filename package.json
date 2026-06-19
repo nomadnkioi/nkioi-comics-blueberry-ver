@@ -4,7 +4,7 @@
   "description": "iPhone 15 Optimized Comic Book Viewer - 나교이 만화가게🍓",
   "main": "app.js",
   "scripts": {
-    "start": "npx http-server ./ -p 3000 -o"
+    "start": "npx http-server ./ -p 3000 -c-1 -o http://localhost:3000"
   },
   "keywords": [
     "comics",

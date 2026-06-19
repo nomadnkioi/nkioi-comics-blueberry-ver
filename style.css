@@ -140,7 +140,7 @@ body {
 
 .settings-btn {
   position: absolute;
-  top: 48px;
+  top: 24px;
   right: 20px;
   background: none;
   border: none;
@@ -822,6 +822,12 @@ body {
   display: flex;
 }
 
+/* 구글 드라이브 파일 탐색 전용 오버레이 수정 (바텀 시트 유연화) */
+#gdrive-picker-modal {
+  padding: 0;
+  align-items: flex-end;
+}
+
 .modal-box {
   background-color: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -935,4 +941,195 @@ body {
 .settings-form input:focus {
   border-color: var(--primary-strawberry) !important;
   box-shadow: 0 0 0 3px rgba(74, 114, 220, 0.15) !important;
+}
+
+/* ==========================================================================
+   15. 커스텀 구글 드라이브 Picker 스타일 (모바일 최적화)
+   ========================================================================== */
+.gdrive-picker-box {
+  max-width: 100% !important;
+  width: 100% !important;
+  height: 90vh;
+  height: 90dvh;
+  align-self: flex-end; /* 아래에 밀착하여 Bottom Sheet 느낌으로 노출 */
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px 20px !important;
+  border-radius: 32px 32px 0 0 !important; /* 위쪽 모서리만 둥글게 처리 */
+  overflow: hidden;
+  animation: slideUpSheet 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpSheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(74, 114, 220, 0.1);
+}
+
+.picker-header .modal-title {
+  margin-bottom: 0;
+  font-size: 1.15rem;
+}
+
+.picker-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.picker-close-btn:hover {
+  color: var(--primary-strawberry);
+}
+
+/* 브레드크럼 (경로 표시) */
+.picker-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: rgba(74, 114, 220, 0.04);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-strawberry);
+  overflow-x: auto;
+  white-space: nowrap;
+  margin-bottom: 12px;
+  border: 1px solid rgba(74, 114, 220, 0.05);
+}
+
+.picker-breadcrumb::-webkit-scrollbar {
+  display: none;
+}
+
+.breadcrumb-item {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.breadcrumb-item:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.breadcrumb-item:not(:last-child)::after {
+  content: " >";
+  margin-left: 6px;
+  color: var(--text-secondary);
+  display: inline-block;
+  opacity: 0.6;
+  text-decoration: none !important;
+}
+
+/* 리스트 영역 */
+.picker-list-container {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  border: 1px solid rgba(74, 114, 220, 0.08);
+}
+
+.picker-loader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 10;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary-strawberry);
+}
+
+.loader-spinner.mini {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.picker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* 리스트 항목 스타일 */
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(74, 114, 220, 0.05);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.picker-item:hover {
+  background-color: rgba(74, 114, 220, 0.04);
+}
+
+.picker-item:active {
+  background-color: rgba(74, 114, 220, 0.08);
+}
+
+.picker-icon {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.picker-name-wrapper {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.picker-item-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-item-size {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.picker-empty-msg {
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  font-weight: 500;
 }

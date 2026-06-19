@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>nkioi comics - 나교이 만화가게_bluberry ver. 🫐</title>
+  <title>nkioi comics - 나교이 만화가게_blueberry ver. 🫐</title>
 
   <!-- 프리미엄 구글 폰트 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +22,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
 
-  <link rel="stylesheet" href="style.css?v=1.0.2">
+  <link rel="stylesheet" href="style.css?v=1.0.3">
 </head>
 
 <body>
@@ -37,7 +37,7 @@
     <section id="library-screen" class="screen active">
       <header class="library-header">
         <h1 class="app-logo">나교이 만화가게 <span>🫐</span></h1>
-        <p class="app-subtitle">nkioi comics_bluberry ver.</p>
+        <p class="app-subtitle">nkioi comics_blueberry ver.</p>
         <button class="settings-btn" id="btn-open-settings" title="구글 드라이브 설정">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
@@ -167,7 +167,7 @@
     <div id="resume-modal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-strawberry">🫐</div>
-        <h3 class="modal-title">나교이 만화가게_bluberry ver.</h3>
+        <h3 class="modal-title">나교이 만화가게_blueberry ver.</h3>
         <p class="modal-desc">이전에 읽던 기록이 있습니다.<br>어떻게 읽기 시작할까요?</p>
         <div class="modal-actions">
           <button class="modal-btn btn-secondary" id="btn-read-start">처음부터 읽기</button>
@@ -202,10 +202,35 @@
         </div>
       </div>
     </div>
+    <!-- ==================== 5. 커스텀 구글 드라이브 파일 탐색 모달 ==================== -->
+    <div id="gdrive-picker-modal" class="modal-overlay">
+      <div class="modal-box gdrive-picker-box">
+        <div class="picker-header">
+          <h3 class="modal-title">구글 드라이브 탐색</h3>
+          <button class="picker-close-btn" id="btn-close-picker">✕</button>
+        </div>
+        
+        <!-- 폴더 이동 네비게이션 경로 -->
+        <div class="picker-breadcrumb" id="picker-breadcrumb">
+          <span class="breadcrumb-item" data-folder-id="root">My Drive</span>
+        </div>
+
+        <!-- 파일/폴더 목록 컨테이너 -->
+        <div class="picker-list-container">
+          <div id="picker-loader" class="picker-loader" style="display: none;">
+            <div class="loader-spinner mini"></div>
+            <p>목록을 불러오는 중...</p>
+          </div>
+          <ul class="picker-list" id="picker-file-list">
+            <!-- 동적으로 파일 및 폴더 목록이 추가됨 -->
+          </ul>
+        </div>
+      </div>
+    </div>
 
   </div>
 
   <!-- 메인 스크립트 작성 예정 -->
-  <script src="app.js?v=1.0.2"></script>
+  <script src="app.js?v=1.0.3"></script>
 </body>
 </html>
