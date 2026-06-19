@@ -622,10 +622,13 @@ function renderBookshelf() {
     // 저장된 진행 기록 파악
     const progress = getSavedProgress(book.id);
     let progressHTML = '';
+    const representativeUnit = book.volumeUnits?.[firstVolKey] || "권";
+    
     if (progress) {
+      const progressUnit = book.volumeUnits?.[progress.volume] || "권";
       progressHTML = `
         <div class="comic-card-progress">
-          <span>${progress.volume}권 ${progress.page}페이지 읽음</span>
+          <span>${progress.volume}${progressUnit} ${progress.page}페이지 읽음</span>
         </div>
       `;
     }
@@ -639,7 +642,7 @@ function renderBookshelf() {
       <div class="comic-card-meta">
         <h4 class="comic-card-title">${book.title}</h4>
         
-        <span class="comic-card-volumes">총 ${book.totalVolumes}권</span>
+        <span class="comic-card-volumes">총 ${book.totalVolumes}${representativeUnit}</span>
         ${progressHTML}
       </div>
     `;
