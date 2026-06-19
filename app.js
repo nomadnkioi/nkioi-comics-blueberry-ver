@@ -275,6 +275,24 @@ function parseComicFileName(fileName) {
   return result;
 }
 
+// 비동기 무한 대기 락(Lock)을 방지하기 위한 타임아웃 래퍼 프로미스
+function timeoutPromise(promise, ms, rejectMessage = "요청 시간이 초과되었습니다.") {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(rejectMessage));
+    }, ms);
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 // --- 3.5. 양면 이미지 분할 헬퍼 함수 및 이미지 처리 파이프라인 ---
 async function splitDoublePageImageIfNeeded(blobUrl) {
   return new Promise((resolve) => {
@@ -434,7 +452,7 @@ async function processUploadedFiles(files) {
 
       try {
         const archive = new ArchiveWrapper(file, file.name);
-        await archive.load();
+        await timeoutPromise(archive.load(), 10000, "압축 파일을 해제하는 도중 백그라운드 스레드 오류가 발생했거나 시간이 초과되었습니다.");
         const allFiles = archive.filePaths;
         
         // 1. 이미지 및 내부 압축 파일 탐색
