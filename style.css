@@ -949,8 +949,7 @@ body {
 .gdrive-picker-box {
   max-width: 100% !important;
   width: 100% !important;
-  height: 90vh;
-  height: 90dvh;
+  height: 94%; /* 화면 윗부분 여백을 자연스럽게 꽉 채우도록 94% 높이 지정 */
   align-self: flex-end; /* 아래에 밀착하여 Bottom Sheet 느낌으로 노출 */
   display: flex;
   flex-direction: column;
@@ -994,6 +993,52 @@ body {
 }
 
 .picker-close-btn:hover {
+  color: var(--primary-strawberry);
+}
+
+/* 실시간 검색 영역 스타일 */
+.picker-search-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+#picker-search-input {
+  width: 100%;
+  padding: 12px 38px 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 114, 220, 0.15);
+  background-color: rgba(74, 114, 220, 0.03);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.2s;
+}
+
+#picker-search-input:focus {
+  border-color: var(--primary-strawberry);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(74, 114, 220, 0.1);
+}
+
+.picker-search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.picker-search-clear:hover {
   color: var(--primary-strawberry);
 }
 

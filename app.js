@@ -1046,9 +1046,27 @@ async function handleGDriveButtonClick() {
 GDrive.folderPathHistory = [];
 
 async function openGooglePicker() {
-  GDrive.folderPathHistory = [{ id: GDrive.lastFolderId || 'root', name: GDrive.lastFolderId === 'root' || !GDrive.lastFolderId ? 'My Drive' : '이전 폴더' }];
+  // 검색창 초기화
+  const searchInput = document.getElementById('picker-search-input');
+  if (searchInput) searchInput.value = '';
+  const searchClear = document.getElementById('btn-clear-picker-search');
+  if (searchClear) searchClear.style.display = 'none';
+
+  // [버그 수정] 시작 시 GDrive.lastFolderId가 root가 아니면 root에서 시작해서 GDrive.lastFolderId까지 타고 들어가거나,
+  // 최소한 root -> GDrive.lastFolderId 구조의 계층적 히스토리를 생성해 줍니다.
+  const lastId = GDrive.lastFolderId || 'root';
+  if (lastId === 'root') {
+    GDrive.folderPathHistory = [{ id: 'root', name: 'My Drive' }];
+  } else {
+    // 이전 폴더로 원활히 돌아갈 수 있도록 최상위 'My Drive'와 '이전 폴더'를 배열에 확실히 순서대로 밀어넣습니다.
+    GDrive.folderPathHistory = [
+      { id: 'root', name: 'My Drive' },
+      { id: lastId, name: '이전 폴더' }
+    ];
+  }
+  
   DOM.gdrivePickerModal.classList.add('active');
-  await loadFolderContents(GDrive.lastFolderId || 'root');
+  await loadFolderContents(lastId);
 }
 
 function updateBreadcrumb() {
@@ -1060,6 +1078,12 @@ function updateBreadcrumb() {
     span.dataset.folderId = folder.id;
     
     span.addEventListener('click', async () => {
+      // 검색창 지우기
+      const searchInput = document.getElementById('picker-search-input');
+      if (searchInput) searchInput.value = '';
+      const searchClear = document.getElementById('btn-clear-picker-search');
+      if (searchClear) searchClear.style.display = 'none';
+
       // 클릭한 위치 이후의 히스토리 제거
       GDrive.folderPathHistory = GDrive.folderPathHistory.slice(0, idx + 1);
       await loadFolderContents(folder.id);
@@ -1276,6 +1300,43 @@ function initEventListeners() {
   if (DOM.btnClosePicker) DOM.btnClosePicker.addEventListener('click', () => {
     DOM.gdrivePickerModal.classList.remove('active');
   });
+
+  // 검색창 실시간 필터링 이벤트 추가
+  const searchInput = document.getElementById('picker-search-input');
+  const searchClear = document.getElementById('btn-clear-picker-search');
+  if (searchInput && searchClear) {
+    searchInput.addEventListener('input', (e) => {
+      const keyword = e.target.value.toLowerCase().trim();
+      
+      // 글자 유무에 따라 클리어 버튼 토글
+      searchClear.style.display = keyword ? 'flex' : 'none';
+      
+      // 리스트 필터링
+      const items = DOM.pickerFileList.querySelectorAll('.picker-item');
+      items.forEach(item => {
+        const nameEl = item.querySelector('.picker-item-name');
+        if (nameEl) {
+          const name = nameEl.textContent.toLowerCase();
+          if (name.includes(keyword)) {
+            item.style.setProperty('display', 'flex', 'important');
+          } else {
+            item.style.setProperty('display', 'none', 'important');
+          }
+        }
+      });
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchInput.focus();
+      searchClear.style.display = 'none';
+      
+      const items = DOM.pickerFileList.querySelectorAll('.picker-item');
+      items.forEach(item => {
+        item.style.setProperty('display', 'flex', 'important');
+      });
+    });
+  }
 
   // G. 하단 게이지 바 터치/드래그 즉시 네비게이션 제어
   DOM.viewerPageSlider.addEventListener('input', (e) => {
