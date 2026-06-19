@@ -1356,10 +1356,7 @@ async function openGooglePicker() {
   
   DOM.gdrivePickerModal.classList.add('active');
   
-  // 백그라운드에서 드라이브 전체 만화책 파일 캐싱 시작
-  loadGlobalComicFiles();
-  
-  // 동시에 현재 폴더 콘텐츠 브라우징 로드
+  // 동시에 현재 폴더 콘텐츠 브라우징 로드 (글로벌 캐싱 호출 loadGlobalComicFiles 전면 제거)
   await loadFolderContents(lastId);
 }
 
@@ -1386,83 +1383,38 @@ function updateBreadcrumb() {
   });
 }
 
-// 구글 드라이브 내의 모든 만화책 파일 목록을 백그라운드로 가져와 캐싱하는 함수
-async function loadGlobalComicFiles() {
-  if (GDrive.isGlobalLoading) return;
-  GDrive.isGlobalLoading = true;
-  GDrive.globalComicFiles = [];
-  
-  if (DOM.pickerGlobalStatus && DOM.pickerGlobalStatusText) {
-    DOM.pickerGlobalStatus.style.backgroundColor = 'rgba(74, 114, 220, 0.05)';
-    DOM.pickerGlobalStatus.style.color = 'var(--text-secondary)';
-    DOM.pickerGlobalStatus.style.borderColor = 'rgba(74, 114, 220, 0.15)';
-    DOM.pickerGlobalStatus.style.borderStyle = 'dashed';
-    const spinner = DOM.pickerGlobalStatus.querySelector('.loader-spinner');
-    if (spinner) spinner.style.display = 'block';
-    
-    DOM.pickerGlobalStatusText.textContent = "드라이브 전체 파일 검색 인덱싱 중...";
-    DOM.pickerGlobalStatus.style.display = 'flex';
+// 실시간 구글 서버 API 기반 검색 기능 구현 (이전 Abort 지원)
+let currentSearchAbortController = null;
+
+async function searchDriveFilesFromServer(keyword) {
+  if (currentSearchAbortController) {
+    currentSearchAbortController.abort();
   }
-  
+  currentSearchAbortController = new AbortController();
+  const signal = currentSearchAbortController.signal;
+
   try {
-    const q = `trashed = false and (mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
+    const escapedKeyword = keyword.replace(/'/g, "\\'");
+    const q = `trashed = false and name contains '${escapedKeyword}' and (mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
     
-    let nextPageToken = null;
-    let accumulated = [];
-    let loopCount = 0;
-    
-    do {
-      let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime)&pageSize=100`;
-      if (nextPageToken) {
-        url += `&pageToken=${encodeURIComponent(nextPageToken)}`;
-      }
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${GDrive.accessToken}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API 오류 (HTTP ${response.status})`);
-      }
-      
-      const data = await response.json();
-      const files = data.files || [];
-      accumulated.push(...files);
-      
-      if (DOM.pickerGlobalStatusText) {
-        DOM.pickerGlobalStatusText.textContent = `드라이브 전체 파일 검색 인덱싱 중... (${accumulated.length}개 완료)`;
-      }
-      
-      nextPageToken = data.nextPageToken || null;
-      loopCount++;
-    } while (nextPageToken && loopCount < 20);
-    
-    GDrive.globalComicFiles = accumulated;
-    
-    if (DOM.pickerGlobalStatus) {
-      DOM.pickerGlobalStatus.style.display = 'none'; // 성공 시 숨김
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime)&pageSize=100`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${GDrive.accessToken}`
+      },
+      signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`검색 API 오류 (HTTP ${response.status})`);
     }
-    
-    // 만약 전체 로드가 끝났을 때 사용자가 이미 무언가 타이핑 중이었다면 즉시 반영해 줌
-    const searchInput = document.getElementById('picker-search-input');
-    if (searchInput && searchInput.value.trim()) {
-      renderFilteredFileList();
-    }
+
+    const data = await response.json();
+    return data.files || [];
   } catch (err) {
-    console.error("구글 드라이브 글로벌 만화 캐싱 실패:", err);
-    if (DOM.pickerGlobalStatus && DOM.pickerGlobalStatusText) {
-      DOM.pickerGlobalStatusText.textContent = `전체 인덱싱 실패: ${err.message}`;
-      DOM.pickerGlobalStatus.style.backgroundColor = 'rgba(220, 53, 69, 0.05)';
-      DOM.pickerGlobalStatus.style.color = '#dc3545';
-      DOM.pickerGlobalStatus.style.borderColor = 'rgba(220, 53, 69, 0.2)';
-      DOM.pickerGlobalStatus.style.borderStyle = 'solid';
-      const spinner = DOM.pickerGlobalStatus.querySelector('.loader-spinner');
-      if (spinner) spinner.style.display = 'none';
-    }
-  } finally {
-    GDrive.isGlobalLoading = false;
+    if (err.name === 'AbortError') return null; // 중단된 비동기 요청 무시
+    console.error("서버 검색 중 에러:", err);
+    throw err;
   }
 }
 
@@ -1529,25 +1481,15 @@ async function loadFolderContents(folderId) {
   }
 }
 
-// 브라우저 내부에서 실시간으로 정렬 및 .includes 부분 검색을 수행하는 렌더 엔진
+// 브라우저 내부에서 실시간으로 정렬을 수행하는 렌더 엔진 (폴더 탐색용)
 function renderFilteredFileList() {
   const list = DOM.pickerFileList;
   if (!list) return;
   
   list.innerHTML = '';
   
-  const searchInput = document.getElementById('picker-search-input');
-  const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
   const sortVal = DOM.pickerSortSelect ? DOM.pickerSortSelect.value : 'folder,name';
-
-  // 1. includes 기반의 완벽 부분검색 필터링
-  // 검색어가 있을 때는 구글 드라이브 전체 파일(globalComicFiles)에서 찾고, 없을 때는 현재 폴더의 직계 파일(allFiles)을 브라우징
-  let filtered = [];
-  if (keyword) {
-    filtered = GDrive.globalComicFiles.filter(file => file.name.toLowerCase().includes(keyword));
-  } else {
-    filtered = GDrive.allFiles;
-  }
+  const filtered = GDrive.allFiles;
 
   if (filtered.length === 0) {
     list.innerHTML = `<li class="picker-empty-msg">이 폴더에 지원되는 만화책 파일이 없습니다.</li>`;
@@ -1620,6 +1562,76 @@ function renderFilteredFileList() {
         DOM.gdrivePickerModal.classList.remove('active');
         await handleGDriveFileDownload(file.id, file.name);
       }
+    });
+
+    list.appendChild(li);
+  });
+}
+
+// 실시간 구글 서버 API 검색 결과를 렌더링하는 전용 렌더러
+function renderServerSearchResults(files) {
+  const list = DOM.pickerFileList;
+  if (!list) return;
+  
+  list.innerHTML = '';
+  
+  if (!files || files.length === 0) {
+    list.innerHTML = `<li class="picker-empty-msg">검색 결과와 일치하는 파일이 없습니다.</li>`;
+    return;
+  }
+  
+  const sortVal = DOM.pickerSortSelect ? DOM.pickerSortSelect.value : 'folder,name';
+
+  files.sort((a, b) => {
+    if (sortVal === 'folder,name desc') {
+      return b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' });
+    } else if (sortVal === 'folder,modifiedTime desc') {
+      const timeA = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
+      const timeB = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
+      return timeB - timeA;
+    } else if (sortVal === 'folder,modifiedTime asc') {
+      const timeA = a.modifiedTime ? new Date(a.modifiedTime).getTime() : 0;
+      const timeB = b.modifiedTime ? new Date(b.modifiedTime).getTime() : 0;
+      return timeA - timeB;
+    } else {
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    }
+  });
+
+  files.forEach(file => {
+    const li = document.createElement('li');
+    li.className = 'picker-item';
+    
+    let sizeStr = '';
+    if (file.size) {
+      const sizeBytes = parseInt(file.size, 10);
+      if (sizeBytes > 1024 * 1024) {
+        sizeStr = `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+      } else {
+        sizeStr = `${(sizeBytes / 1024).toFixed(0)} KB`;
+      }
+    }
+
+    li.innerHTML = `
+      <div class="picker-icon">📚</div>
+      <div class="picker-name-wrapper">
+        <div class="picker-item-name" title="${file.name}">${file.name}</div>
+        ${sizeStr ? `<div class="picker-item-size">${sizeStr}</div>` : ''}
+      </div>
+    `;
+
+    li.addEventListener('click', async () => {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const fileSizeLimit = 500 * 1024 * 1024;
+      
+      if (isMobile && file.size && parseInt(file.size, 10) > fileSizeLimit) {
+        const sizeMB = (parseInt(file.size, 10) / (1024 * 1024)).toFixed(0);
+        const proceed = confirm(`[대용량 파일 경고]\n\n선택하신 파일의 크기가 ${sizeMB}MB로 매우 큽니다.\n\n모바일 브라우저의 메모리 한계로 인해 다운로드 중 앱이 튕기거나 새로고침될 수 있습니다. 계속 다운로드를 진행하시겠습니까?`);
+        if (!proceed) return;
+      }
+
+      DOM.gdrivePickerModal.classList.remove('active');
+      await handleGDriveFileDownload(file.id, file.name);
     });
 
     list.appendChild(li);
@@ -1747,15 +1759,33 @@ function initEventListeners() {
     DOM.gdrivePickerModal.classList.remove('active');
   });
 
-  // 검색창 실시간 필터링 이벤트 추가 (클라이언트 단 정밀 검색)
+  // 검색창 실시간 필터링 이벤트 추가 (실시간 구글 서버 비동기 검색 및 디바운스 기법 적용)
   const searchInput = document.getElementById('picker-search-input');
   const searchClear = document.getElementById('btn-clear-picker-search');
+  let searchDebounceTimeout = null;
 
   if (searchInput && searchClear) {
     searchInput.addEventListener('input', (e) => {
       const keyword = e.target.value.trim();
       searchClear.style.display = keyword ? 'flex' : 'none';
-      renderFilteredFileList();
+      
+      if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+
+      if (!keyword) {
+        renderFilteredFileList();
+        return;
+      }
+
+      searchDebounceTimeout = setTimeout(async () => {
+        try {
+          const files = await searchDriveFilesFromServer(keyword);
+          if (files !== null) {
+            renderServerSearchResults(files);
+          }
+        } catch (err) {
+          DOM.pickerFileList.innerHTML = `<li class="picker-empty-msg" style="color: #dc3545;">검색에 실패했습니다:<br>${err.message}</li>`;
+        }
+      }, 300);
     });
 
     searchClear.addEventListener('click', () => {
@@ -1769,7 +1799,12 @@ function initEventListeners() {
   // 정렬 셀렉트 박스 변경 이벤트 추가
   if (DOM.pickerSortSelect) {
     DOM.pickerSortSelect.addEventListener('change', () => {
-      renderFilteredFileList();
+      const keyword = searchInput ? searchInput.value.trim() : '';
+      if (keyword) {
+        searchInput.dispatchEvent(new Event('input'));
+      } else {
+        renderFilteredFileList();
+      }
     });
   }
 
