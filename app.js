@@ -403,203 +403,209 @@ async function processUploadedFiles(files) {
   let batchBookTitle = null;
   let batchAuthor = null;
 
-  // 동일 배치 내 파일들이 숫자로 시작하는지 확인하여 한 시리즈로 묶기
-  let shouldGroupBatch = false;
-  if (files.length > 1) {
-    let leadingNumCount = 0;
-    for (let i = 0; i < files.length; i++) {
-      const cleanName = files[i].name.replace(/\.[^/.]+$/, "").trim();
-      if (/^\d+/.test(cleanName)) {
-        leadingNumCount++;
+  try {
+    // 동일 배치 내 파일들이 숫자로 시작하는지 확인하여 한 시리즈로 묶기
+    let shouldGroupBatch = false;
+    if (files.length > 1) {
+      let leadingNumCount = 0;
+      for (let i = 0; i < files.length; i++) {
+        const cleanName = files[i].name.replace(/\.[^/.]+$/, "").trim();
+        if (/^\d+/.test(cleanName)) {
+          leadingNumCount++;
+        }
+      }
+      if (leadingNumCount >= files.length / 2) {
+        shouldGroupBatch = true;
       }
     }
-    if (leadingNumCount >= files.length / 2) {
-      shouldGroupBatch = true;
+
+    if (shouldGroupBatch) {
+      const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      const firstMeta = parseComicFileName(sortedFiles[0].name);
+      batchBookTitle = firstMeta.title;
+      batchAuthor = firstMeta.author;
+      const normalizedTitle = batchBookTitle.replace(/\s+/g, "");
+      batchGroupKey = `${batchAuthor}_${normalizedTitle}`;
     }
-  }
 
-  if (shouldGroupBatch) {
-    const sortedFiles = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-    const firstMeta = parseComicFileName(sortedFiles[0].name);
-    batchBookTitle = firstMeta.title;
-    batchAuthor = firstMeta.author;
-    const normalizedTitle = batchBookTitle.replace(/\s+/g, "");
-    batchGroupKey = `${batchAuthor}_${normalizedTitle}`;
-  }
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!/\.(zip|cbz|rar|cbr)$/i.test(file.name)) continue;
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (!/\.(zip|cbz|rar|cbr)$/i.test(file.name)) continue;
-
-    try {
-      const archive = new ArchiveWrapper(file, file.name);
-      await archive.load();
-      const allFiles = archive.filePaths;
-      
-      // 1. 이미지 및 내부 압축 파일 탐색
-      const imageFiles = allFiles.filter(path => /\.(jpg|jpeg|png|webp|gif)$/i.test(path) && !path.includes('__MACOSX'));
-      const nestedZipFiles = allFiles.filter(path => /\.(zip|cbz|rar|cbr)$/i.test(path) && !path.includes('__MACOSX'));
-      
-      let meta = parseComicFileName(file.name);
-      
-      // 하위 폴더가 존재할 경우 하위 폴더명을 기준으로 만화 이름 파싱 (일괄 묶기가 아닐 때만 적용)
-      if (!shouldGroupBatch) {
-        const folderNames = new Set();
-        imageFiles.forEach(path => {
-          const parts = path.split('/');
-          if (parts.length > 1) {
-            folderNames.add(parts[0]);
-          }
-        });
+      try {
+        const archive = new ArchiveWrapper(file, file.name);
+        await archive.load();
+        const allFiles = archive.filePaths;
         
-        if (folderNames.size > 0) {
-          const firstFolder = Array.from(folderNames)[0];
-          const folderMeta = parseComicFileName(firstFolder);
-          if (folderMeta && folderMeta.title) {
-            meta.title = folderMeta.title;
-            if (folderMeta.author && folderMeta.author !== "작자미상") {
-              meta.author = folderMeta.author;
+        // 1. 이미지 및 내부 압축 파일 탐색
+        const imageFiles = allFiles.filter(path => /\.(jpg|jpeg|png|webp|gif)$/i.test(path) && !path.includes('__MACOSX'));
+        const nestedZipFiles = allFiles.filter(path => /\.(zip|cbz|rar|cbr)$/i.test(path) && !path.includes('__MACOSX'));
+        
+        let meta = parseComicFileName(file.name);
+        
+        // 하위 폴더가 존재할 경우 하위 폴더명을 기준으로 만화 이름 파싱 (일괄 묶기가 아닐 때만 적용)
+        if (!shouldGroupBatch) {
+          const folderNames = new Set();
+          imageFiles.forEach(path => {
+            const parts = path.split('/');
+            if (parts.length > 1) {
+              folderNames.add(parts[0]);
+            }
+          });
+          
+          if (folderNames.size > 0) {
+            const firstFolder = Array.from(folderNames)[0];
+            const folderMeta = parseComicFileName(firstFolder);
+            if (folderMeta && folderMeta.title) {
+              meta.title = folderMeta.title;
+              if (folderMeta.author && folderMeta.author !== "작자미상") {
+                meta.author = folderMeta.author;
+              }
             }
           }
         }
-      }
-      
-      const groupKey = shouldGroupBatch ? batchGroupKey : `${meta.author}_${meta.title.replace(/\s+/g, "")}`;
-      const bookTitle = shouldGroupBatch ? batchBookTitle : meta.title;
-      const bookAuthor = shouldGroupBatch ? batchAuthor : meta.author;
-      
-      if (!bookGroupMap[groupKey]) {
-        bookGroupMap[groupKey] = {
-          id: groupKey,
-          title: bookTitle,
-          author: bookAuthor,
-          volumes: {},
-          volumeTitles: {}, // 각 권의 고유 제목 매핑용
-          volumeUnits: {},  // 각 권의 단위(권/화) 매핑용
-          detectedVolumesInfo: {}
-        };
-      }
-      
-      bookGroupMap[groupKey].detectedVolumesInfo[meta.volume] = meta.isVolumeDetected;
-      bookGroupMap[groupKey].volumeTitles[meta.volume] = meta.title;
-      bookGroupMap[groupKey].volumeUnits[meta.volume] = meta.unit || "권";
-      
-      // 케이스 A: 하위 폴더별로 이미지가 존재하여 여러 권으로 나뉘는 경우
-      const folderGroups = {};
-      imageFiles.forEach(path => {
-        const parts = path.split('/');
-        if (parts.length > 1) {
-          const folderName = parts[0];
-          const folderMeta = parseComicFileName(folderName);
-          const fVol = folderMeta.volume;
-          if (!folderGroups[fVol]) folderGroups[fVol] = [];
-          folderGroups[fVol].push(path);
-          
-          if (bookGroupMap[groupKey].detectedVolumesInfo[fVol] === undefined) {
-            bookGroupMap[groupKey].detectedVolumesInfo[fVol] = folderMeta.isVolumeDetected;
-          }
-          bookGroupMap[groupKey].volumeTitles[fVol] = folderMeta.title;
-          bookGroupMap[groupKey].volumeUnits[fVol] = folderMeta.unit || "권";
-        }
-      });
-
-      // 단일 압축 안에 여러 하위 폴더 권이 명확히 구별되는 경우
-      if (Object.keys(folderGroups).length > 1) {
-        const volEntries = Object.entries(folderGroups);
-        for (let vIdx = 0; vIdx < volEntries.length; vIdx++) {
-          const [volNum, paths] = volEntries[vIdx];
-          paths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-          
-          const urls = await processImagesWithSplit(archive, paths, (curr, total) => {
-            showLoader(`[폴더 그룹] ${bookTitle} ${volNum}${bookGroupMap[groupKey].volumeUnits[volNum] || "권"} 처리 중... (${curr}/${total})`);
-          });
-          bookGroupMap[groupKey].volumes[volNum] = urls;
-        }
-      } 
-      // 케이스 B: 중첩된 압축 파일들이 압축 안에 들어있는 경우
-      else if (nestedZipFiles.length > 0) {
-        for (let nIdx = 0; nIdx < nestedZipFiles.length; nIdx++) {
-          const nzPath = nestedZipFiles[nIdx];
-          const nzBlob = await archive.readAsBlob(nzPath);
-          
-          const subArchive = new ArchiveWrapper(nzBlob, nzPath);
-          await subArchive.load();
-          const subAllFiles = subArchive.filePaths;
-          
-          const subImages = subAllFiles.filter(p => /\.(jpg|jpeg|png|webp|gif)$/i.test(p));
-          subImages.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-          
-          const subMeta = parseComicFileName(nzPath);
-          bookGroupMap[groupKey].detectedVolumesInfo[subMeta.volume] = subMeta.isVolumeDetected;
-          bookGroupMap[groupKey].volumeTitles[subMeta.volume] = subMeta.title;
-          bookGroupMap[groupKey].volumeUnits[subMeta.volume] = subMeta.unit || "권";
-          
-          const urls = await processImagesWithSplit(subArchive, subImages, (curr, total) => {
-            showLoader(`[중첩 압축] ${subMeta.title} ${subMeta.volume}${subMeta.unit || "권"} 처리 중... (${curr}/${total})`);
-          });
-          bookGroupMap[groupKey].volumes[subMeta.volume] = urls;
-        }
-      }
-      // 케이스 C: 일반적인 단일 권 압축 파일인 경우
-      else if (imageFiles.length > 0) {
-        imageFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
         
-        const urls = await processImagesWithSplit(archive, imageFiles, (curr, total) => {
-          showLoader(`${meta.title} ${meta.volume}${meta.unit || "권"} 처리 중... (${curr}/${total})`);
+        const groupKey = shouldGroupBatch ? batchGroupKey : `${meta.author}_${meta.title.replace(/\s+/g, "")}`;
+        const bookTitle = shouldGroupBatch ? batchBookTitle : meta.title;
+        const bookAuthor = shouldGroupBatch ? batchAuthor : meta.author;
+        
+        if (!bookGroupMap[groupKey]) {
+          bookGroupMap[groupKey] = {
+            id: groupKey,
+            title: bookTitle,
+            author: bookAuthor,
+            volumes: {},
+            volumeTitles: {}, // 각 권의 고유 제목 매핑용
+            volumeUnits: {},  // 각 권의 단위(권/화) 매핑용
+            detectedVolumesInfo: {}
+          };
+        }
+        
+        bookGroupMap[groupKey].detectedVolumesInfo[meta.volume] = meta.isVolumeDetected;
+        bookGroupMap[groupKey].volumeTitles[meta.volume] = meta.title;
+        bookGroupMap[groupKey].volumeUnits[meta.volume] = meta.unit || "권";
+        
+        // 케이스 A: 하위 폴더별로 이미지가 존재하여 여러 권으로 나뉘는 경우
+        const folderGroups = {};
+        imageFiles.forEach(path => {
+          const parts = path.split('/');
+          if (parts.length > 1) {
+            const folderName = parts[0];
+            const folderMeta = parseComicFileName(folderName);
+            const fVol = folderMeta.volume;
+            if (!folderGroups[fVol]) folderGroups[fVol] = [];
+            folderGroups[fVol].push(path);
+            
+            if (bookGroupMap[groupKey].detectedVolumesInfo[fVol] === undefined) {
+              bookGroupMap[groupKey].detectedVolumesInfo[fVol] = folderMeta.isVolumeDetected;
+            }
+            bookGroupMap[groupKey].volumeTitles[fVol] = folderMeta.title;
+            bookGroupMap[groupKey].volumeUnits[fVol] = folderMeta.unit || "권";
+          }
         });
-        bookGroupMap[groupKey].volumes[meta.volume] = urls;
+
+        // 단일 압축 안에 여러 하위 폴더 권이 명확히 구별되는 경우
+        if (Object.keys(folderGroups).length > 1) {
+          const volEntries = Object.entries(folderGroups);
+          for (let vIdx = 0; vIdx < volEntries.length; vIdx++) {
+            const [volNum, paths] = volEntries[vIdx];
+            paths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            
+            const urls = await processImagesWithSplit(archive, paths, (curr, total) => {
+              showLoader(`[폴더 그룹] ${bookTitle} ${volNum}${bookGroupMap[groupKey].volumeUnits[volNum] || "권"} 처리 중... (${curr}/${total})`);
+            });
+            bookGroupMap[groupKey].volumes[volNum] = urls;
+          }
+        } 
+        // 케이스 B: 중첩된 압축 파일들이 압축 안에 들어있는 경우
+        else if (nestedZipFiles.length > 0) {
+          for (let nIdx = 0; nIdx < nestedZipFiles.length; nIdx++) {
+            const nzPath = nestedZipFiles[nIdx];
+            const nzBlob = await archive.readAsBlob(nzPath);
+            
+            const subArchive = new ArchiveWrapper(nzBlob, nzPath);
+            await subArchive.load();
+            const subAllFiles = subArchive.filePaths;
+            
+            const subImages = subAllFiles.filter(p => /\.(jpg|jpeg|png|webp|gif)$/i.test(p));
+            subImages.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            
+            const subMeta = parseComicFileName(nzPath);
+            bookGroupMap[groupKey].detectedVolumesInfo[subMeta.volume] = subMeta.isVolumeDetected;
+            bookGroupMap[groupKey].volumeTitles[subMeta.volume] = subMeta.title;
+            bookGroupMap[groupKey].volumeUnits[subMeta.volume] = subMeta.unit || "권";
+            
+            const urls = await processImagesWithSplit(subArchive, subImages, (curr, total) => {
+              showLoader(`[중첩 압축] ${subMeta.title} ${subMeta.volume}${subMeta.unit || "권"} 처리 중... (${curr}/${total})`);
+            });
+            bookGroupMap[groupKey].volumes[subMeta.volume] = urls;
+          }
+        }
+        // 케이스 C: 일반적인 단일 권 압축 파일인 경우
+        else if (imageFiles.length > 0) {
+          imageFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+          
+          const urls = await processImagesWithSplit(archive, imageFiles, (curr, total) => {
+            showLoader(`${meta.title} ${meta.volume}${meta.unit || "권"} 처리 중... (${curr}/${total})`);
+          });
+          bookGroupMap[groupKey].volumes[meta.volume] = urls;
+        }
+        
+      } catch (err) {
+        console.error("압축 파일 처리 오류:", err);
+        alert(`[${file.name}] 압축 파일을 푸는 도중 오류가 발생했습니다:\n${err.message}`);
+      }
+    }
+
+    // 1권 보정 및 최종 상태 업데이트
+    Object.values(bookGroupMap).forEach(parsedBook => {
+      const volKeys = Object.keys(parsedBook.volumes).map(Number);
+      if (volKeys.length === 0) return;
+      
+      const hasUninferredVolume1 = parsedBook.detectedVolumesInfo[1] === false;
+      const detectedVols = volKeys.filter(v => parsedBook.detectedVolumesInfo[v] === true);
+      const hasDetectedVolume2 = detectedVols.includes(2);
+      
+      if (hasUninferredVolume1 && hasDetectedVolume2) {
+        console.log(`[보정] ${parsedBook.title}의 확실한 2권이 발견되었으므로, 미인식 권을 1권으로 유추 확정합니다.`);
       }
       
-    } catch (err) {
-      console.error("압축 파일 처리 오류:", err);
-      alert(`[${file.name}] 압축 파일을 푸는 도중 오류가 발생했습니다:\n${err.message}`);
-    }
-  }
+      parsedBook.totalVolumes = Math.max(...volKeys);
+      
+      const existingIndex = state.books.findIndex(b => b.id === parsedBook.id);
+      if (existingIndex > -1) {
+        state.books[existingIndex].volumes = {
+          ...state.books[existingIndex].volumes,
+          ...parsedBook.volumes
+        };
+        state.books[existingIndex].volumeTitles = {
+          ...state.books[existingIndex].volumeTitles,
+          ...parsedBook.volumeTitles
+        };
+        state.books[existingIndex].volumeUnits = {
+          ...state.books[existingIndex].volumeUnits,
+          ...parsedBook.volumeUnits
+        };
+        state.books[existingIndex].totalVolumes = Math.max(
+          state.books[existingIndex].totalVolumes,
+          parsedBook.totalVolumes
+        );
+      } else {
+        state.books.push(parsedBook);
+      }
+    });
 
-  // 1권 보정 및 최종 상태 업데이트
-  Object.values(bookGroupMap).forEach(parsedBook => {
-    const volKeys = Object.keys(parsedBook.volumes).map(Number);
-    if (volKeys.length === 0) return;
-    
-    const hasUninferredVolume1 = parsedBook.detectedVolumesInfo[1] === false;
-    const detectedVols = volKeys.filter(v => parsedBook.detectedVolumesInfo[v] === true);
-    const hasDetectedVolume2 = detectedVols.includes(2);
-    
-    if (hasUninferredVolume1 && hasDetectedVolume2) {
-      console.log(`[보정] ${parsedBook.title}의 확실한 2권이 발견되었으므로, 미인식 권을 1권으로 유추 확정합니다.`);
+    if (Object.keys(bookGroupMap).length === 0) {
+      alert("불러올 수 있는 유효한 만화책 압축 파일이 없거나 압축 풀기에 실패했습니다.");
     }
-    
-    parsedBook.totalVolumes = Math.max(...volKeys);
-    
-    const existingIndex = state.books.findIndex(b => b.id === parsedBook.id);
-    if (existingIndex > -1) {
-      state.books[existingIndex].volumes = {
-        ...state.books[existingIndex].volumes,
-        ...parsedBook.volumes
-      };
-      state.books[existingIndex].volumeTitles = {
-        ...state.books[existingIndex].volumeTitles,
-        ...parsedBook.volumeTitles
-      };
-      state.books[existingIndex].volumeUnits = {
-        ...state.books[existingIndex].volumeUnits,
-        ...parsedBook.volumeUnits
-      };
-      state.books[existingIndex].totalVolumes = Math.max(
-        state.books[existingIndex].totalVolumes,
-        parsedBook.totalVolumes
-      );
-    } else {
-      state.books.push(parsedBook);
-    }
-  });
-
-  if (Object.keys(bookGroupMap).length === 0) {
-    alert("불러올 수 있는 유효한 만화책 압축 파일이 없거나 압축 풀기에 실패했습니다.");
+  } catch (globalErr) {
+    console.error("도서 처리 치명적 오류:", globalErr);
+    alert(`도서를 처리하는 과정에서 해결할 수 없는 시스템 에러가 발생했습니다:\n${globalErr.message}`);
+  } finally {
+    hideLoader();
+    renderBookshelf();
   }
-  
-  hideLoader();
-  renderBookshelf();
+}
 }
 
 // --- 5. 서재 렌더링 엔진 ---
