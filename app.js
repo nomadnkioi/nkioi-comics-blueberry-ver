@@ -412,7 +412,7 @@ async function processImagesWithSplit(archive, paths, onProgress) {
   return resultUrls;
 }
 
-// --- 4. JSZip/Unarchiver 기반 지능형 하이브리드 파일 파서 ---
+// --- 4. JSZip/Unarchiver 기반 지능형 하이브리드 파일 파서 (온디맨드 방식) ---
 async function processUploadedFiles(files) {
   showLoader("도서를 분석 중입니다...");
   
@@ -500,6 +500,7 @@ async function processUploadedFiles(files) {
             title: bookTitle,
             author: bookAuthor,
             volumes: {},
+            archives: {},      // 권별 ArchiveWrapper 보관용
             volumeTitles: {}, // 각 권의 고유 제목 매핑용
             volumeUnits: {},  // 각 권의 단위(권/화) 매핑용
             detectedVolumesInfo: {}
@@ -536,10 +537,9 @@ async function processUploadedFiles(files) {
             const [volNum, paths] = volEntries[vIdx];
             paths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
             
-            const urls = await processImagesWithSplit(archive, paths, (curr, total) => {
-              showLoader(`[폴더 그룹] ${bookTitle} ${volNum}${bookGroupMap[groupKey].volumeUnits[volNum] || "권"} 처리 중... (${curr}/${total})`);
-            });
-            bookGroupMap[groupKey].volumes[volNum] = urls;
+            // 온디맨드 방식으로 경로 매핑만 진행
+            bookGroupMap[groupKey].volumes[volNum] = paths.map(p => ({ path: p, url: null }));
+            bookGroupMap[groupKey].archives[volNum] = archive;
           }
         } 
         // 케이스 B: 중첩된 압축 파일들이 압축 안에 들어있는 경우
@@ -560,20 +560,18 @@ async function processUploadedFiles(files) {
             bookGroupMap[groupKey].volumeTitles[subMeta.volume] = subMeta.title;
             bookGroupMap[groupKey].volumeUnits[subMeta.volume] = subMeta.unit || "권";
             
-            const urls = await processImagesWithSplit(subArchive, subImages, (curr, total) => {
-              showLoader(`[중첩 압축] ${subMeta.title} ${subMeta.volume}${subMeta.unit || "권"} 처리 중... (${curr}/${total})`);
-            });
-            bookGroupMap[groupKey].volumes[subMeta.volume] = urls;
+            // 온디맨드 방식으로 경로 매핑만 진행
+            bookGroupMap[groupKey].volumes[subMeta.volume] = subImages.map(p => ({ path: p, url: null }));
+            bookGroupMap[groupKey].archives[subMeta.volume] = subArchive;
           }
         }
         // 케이스 C: 일반적인 단일 권 압축 파일인 경우
         else if (imageFiles.length > 0) {
           imageFiles.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
           
-          const urls = await processImagesWithSplit(archive, imageFiles, (curr, total) => {
-            showLoader(`${meta.title} ${meta.volume}${meta.unit || "권"} 처리 중... (${curr}/${total})`);
-          });
-          bookGroupMap[groupKey].volumes[meta.volume] = urls;
+          // 온디맨드 방식으로 경로 매핑만 진행
+          bookGroupMap[groupKey].volumes[meta.volume] = imageFiles.map(p => ({ path: p, url: null }));
+          bookGroupMap[groupKey].archives[meta.volume] = archive;
         }
         
       } catch (err) {
@@ -602,6 +600,10 @@ async function processUploadedFiles(files) {
         state.books[existingIndex].volumes = {
           ...state.books[existingIndex].volumes,
           ...parsedBook.volumes
+        };
+        state.books[existingIndex].archives = {
+          ...state.books[existingIndex].archives,
+          ...parsedBook.archives
         };
         state.books[existingIndex].volumeTitles = {
           ...state.books[existingIndex].volumeTitles,
@@ -633,6 +635,98 @@ async function processUploadedFiles(files) {
   }
 }
 
+// --- 4.5. 온디맨드(지연) 로딩 및 메모리 윈도우 엔진 ---
+async function getPageUrl(book, volume, pageIndex) {
+  const pages = book.volumes[volume];
+  if (!pages || !pages[pageIndex]) return null;
+
+  const pageObj = pages[pageIndex];
+
+  // 0. 일반적인 텍스트 URL 문자열(구글 드라이브 캐시 등)인 경우 하위호환성 유지 및 안전한 리턴
+  if (typeof pageObj === 'string') {
+    return pageObj;
+  }
+
+  // 1. 이미 Blob URL이 생성되어 있다면 즉시 사용
+  if (pageObj.url) {
+    return pageObj.url;
+  }
+
+  // 2. 분할 페이지의 두 번째 반쪽이고 URL이 아직 없는 경우
+  if (pageObj.isSecondHalf && !pageObj.url) {
+    // 이전 페이지(첫 번째 반쪽)를 로드하면 이 페이지의 URL도 채워지므로 순차적으로 로드
+    await getPageUrl(book, volume, pageIndex - 1);
+    return pageObj.url;
+  }
+
+  // 3. 경로 정보가 있고 아카이브가 존재하는 경우 실시간 해제
+  if (pageObj.path && book.archives && book.archives[volume]) {
+    const archive = book.archives[volume];
+    try {
+      const blob = await archive.readAsBlob(pageObj.path);
+      const tempUrl = URL.createObjectURL(blob);
+      
+      // 양면 이미지 분할 검사
+      const splitUrls = await splitDoublePageImageIfNeeded(tempUrl);
+      if (splitUrls.length > 1) {
+        pageObj.url = splitUrls[0];
+        pageObj.isSplit = true;
+        
+        // 두 번째 반쪽을 가리키는 페이지 객체 생성 및 배열 삽입 (아직 생성되지 않은 경우에만)
+        const nextIdx = pageIndex + 1;
+        const nextObj = pages[nextIdx];
+        if (!nextObj || !nextObj.isSecondHalf || nextObj.path !== pageObj.path) {
+          const nextPageObj = {
+            path: pageObj.path,
+            url: splitUrls[1],
+            isSplit: true,
+            isSecondHalf: true
+          };
+          pages.splice(nextIdx, 0, nextPageObj);
+          
+          // 동적으로 늘어난 페이지 수에 맞춰 슬라이더 최댓값 갱신
+          DOM.viewerPageSlider.max = pages.length;
+          updateGaugeProgress();
+        } else {
+          // 이미 존재하면 URL만 업데이트
+          nextObj.url = splitUrls[1];
+        }
+        
+        if (tempUrl !== splitUrls[0] && tempUrl !== splitUrls[1]) {
+          URL.revokeObjectURL(tempUrl);
+        }
+        return splitUrls[0];
+      } else {
+        pageObj.url = tempUrl;
+        return tempUrl;
+      }
+    } catch (err) {
+      console.error("페이지 지연 로딩 실패:", err);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function manageMemoryWindow(book, volume, currentPageIndex) {
+  const pages = book.volumes[volume];
+  if (!pages) return;
+
+  const windowSize = 3; // 현재 페이지 앞뒤로 3페이지까지만 메모리 유지
+
+  for (let i = 0; i < pages.length; i++) {
+    const pageObj = pages[i];
+    if (pageObj && pageObj.url) {
+      if (Math.abs(i - currentPageIndex) > windowSize) {
+        // 윈도우 범위를 초과하는 페이지는 Blob URL 해제
+        URL.revokeObjectURL(pageObj.url);
+        pageObj.url = null;
+      }
+    }
+  }
+}
+
 // --- 5. 서재 렌더링 엔진 ---
 function renderBookshelf() {
   if (state.books.length === 0) {
@@ -646,9 +740,7 @@ function renderBookshelf() {
   DOM.bookshelf.innerHTML = '';
   
   state.books.forEach(book => {
-    // 1권의 1페이지 또는 존재하는 가장 첫 페이지를 썸네일로 지정
     const firstVolKey = Object.keys(book.volumes).sort((a, b) => Number(a) - Number(b))[0];
-    const thumbnailSrc = book.volumes[firstVolKey]?.[0] || '';
     
     // 저장된 진행 기록 파악
     const progress = getSavedProgress(book.id);
@@ -668,15 +760,22 @@ function renderBookshelf() {
     card.className = 'comic-card';
     card.innerHTML = `
       <div class="comic-card-thumbnail-wrapper">
-        <img class="comic-card-thumbnail" src="${thumbnailSrc}" alt="${book.title}" loading="lazy">
+        <img class="comic-card-thumbnail" id="thumb-${book.id}" src="" alt="${book.title}" loading="lazy">
       </div>
       <div class="comic-card-meta">
         <h4 class="comic-card-title">${book.title}</h4>
-        
         <span class="comic-card-volumes">총 ${book.totalVolumes}${representativeUnit}</span>
         ${progressHTML}
       </div>
     `;
+    
+    // 비동기 온디맨드 썸네일 이미지 로드 바인딩
+    getPageUrl(book, firstVolKey, 0).then(url => {
+      const img = document.getElementById(`thumb-${book.id}`);
+      if (img && url) {
+        img.src = url;
+      }
+    }).catch(err => console.error("썸네일 로딩 실패:", err));
     
     card.addEventListener('click', () => selectBook(book.id));
     DOM.bookshelf.appendChild(card);
@@ -766,7 +865,7 @@ function formatVolumeName(volNum, title, unit = "권") {
 }
 
 // --- 7. 만화 페이지 렌더링 & 로딩 ---
-function loadVolumeAndPage() {
+async function loadVolumeAndPage() {
   const book = state.books.find(b => b.id === state.currentBookId);
   if (!book) return;
   
@@ -797,11 +896,22 @@ function loadVolumeAndPage() {
   DOM.comicImage.style.display = 'block';
   DOM.scrollContainer.style.display = 'none';
   
-  DOM.comicImage.src = pages[state.currentPage - 1];
-  DOM.comicImage.onload = () => {
+  const pageIndex = state.currentPage - 1;
+  const pageUrl = await getPageUrl(book, state.currentVolume, pageIndex);
+  
+  if (pageUrl) {
+    DOM.comicImage.src = pageUrl;
+    DOM.comicImage.onload = () => {
+      hideViewerLoader();
+      preloadNextPage();
+    };
+    
+    // 메모리 윈도우 관리 (앞뒤 N개 페이지 외에는 리소스를 해제하여 OOM 방어)
+    manageMemoryWindow(book, state.currentVolume, pageIndex);
+  } else {
     hideViewerLoader();
-    preloadNextPage();
-  };
+    alert("페이지 이미지를 불러오는데 실패했습니다.");
+  }
   
   // 좌측 권수 이동 드롭다운 갱신
   renderVolumeDropdown(book);
@@ -1526,22 +1636,20 @@ function hideViewerLoader() {
   DOM.viewerLoader.classList.remove('active');
 }
 
-// 이전/다음 만화 페이지 백그라운드 프리로드 기능
-function preloadNextPage() {
+// 이전/다음 만화 페이지 백그라운드 프리로드 기능 (온디맨드 연동)
+async function preloadNextPage() {
   const book = state.books.find(b => b.id === state.currentBookId);
   if (!book) return;
   const pages = book.volumes[state.currentVolume];
   if (!pages) return;
   
-  // 다음 페이지 프리로드 (state.currentPage는 1-based index이므로 인덱스 그대로 사용)
+  // 다음 페이지 프리로드 (비동기 해제 호출)
   if (state.currentPage < pages.length) {
-    const nextImg = new Image();
-    nextImg.src = pages[state.currentPage];
+    getPageUrl(book, state.currentVolume, state.currentPage);
   }
   // 이전 페이지 프리로드
   if (state.currentPage > 1) {
-    const prevImg = new Image();
-    prevImg.src = pages[state.currentPage - 2];
+    getPageUrl(book, state.currentVolume, state.currentPage - 2);
   }
 }
 
