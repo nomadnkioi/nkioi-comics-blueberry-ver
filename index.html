@@ -231,10 +231,16 @@
           <button class="picker-close-btn" id="btn-close-picker">✕</button>
         </div>
 
-        <!-- 실시간 검색 및 필터링 바 -->
+        <!-- 실시간 검색 및 정렬/필터링 바 -->
         <div class="picker-search-container">
-          <input type="text" id="picker-search-input" placeholder="이름으로 검색..." autocomplete="off">
-          <button class="picker-search-clear" id="btn-clear-picker-search" style="display: none;">✕</button>
+          <div class="search-input-wrapper">
+            <input type="text" id="picker-search-input" placeholder="이름으로 검색..." autocomplete="off">
+            <button class="picker-search-clear" id="btn-clear-picker-search" style="display: none;">✕</button>
+          </div>
+          <select id="picker-sort-select" class="picker-sort-select">
+            <option value="folder,name">이름순</option>
+            <option value="folder,modifiedTime desc">최신순</option>
+          </select>
         </div>
 
         <!-- 폴더 이동 네비게이션 경로 -->
