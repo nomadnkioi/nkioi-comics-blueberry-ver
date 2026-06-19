@@ -81,7 +81,8 @@ const DOM = {
   btnClosePicker: document.getElementById('btn-close-picker'),
   pickerBreadcrumb: document.getElementById('picker-breadcrumb'),
   pickerFileList: document.getElementById('picker-file-list'),
-  pickerLoader: document.getElementById('picker-loader')
+  pickerLoader: document.getElementById('picker-loader'),
+  pickerListContainer: document.querySelector('.picker-list-container')
 };
 
 // --- 3. 지능형 파일명/메타데이터 분석 정규식 파서 ---
@@ -1093,7 +1094,9 @@ const GDrive = {
   isGapiLoaded: false,
   isGisLoaded: false,
   pendingPickerOpen: false,
-  lastFolderId: localStorage.getItem('nkioi-gdrive-last-folder-id') || 'root'
+  lastFolderId: localStorage.getItem('nkioi-gdrive-last-folder-id') || 'root',
+  nextPageToken: null,
+  isLoadingMore: false
 };
 
 function loadGapiAndGis() {
@@ -1273,6 +1276,9 @@ async function openGooglePicker() {
   const searchClear = document.getElementById('btn-clear-picker-search');
   if (searchClear) searchClear.style.display = 'none';
 
+  GDrive.nextPageToken = null;
+  GDrive.isLoadingMore = false;
+
   // [버그 수정] 시작 시 GDrive.lastFolderId가 root가 아니면 root에서 시작해서 GDrive.lastFolderId까지 타고 들어가거나,
   // 최소한 root -> GDrive.lastFolderId 구조의 계층적 히스토리를 생성해 줍니다.
   const lastId = GDrive.lastFolderId || 'root';
@@ -1313,20 +1319,45 @@ function updateBreadcrumb() {
   });
 }
 
-async function loadFolderContents(folderId) {
+async function loadFolderContents(folderId, isNextPage = false) {
   const loader = DOM.pickerLoader;
   const list = DOM.pickerFileList;
   
-  loader.style.display = 'flex';
-  list.innerHTML = '';
+  let moreLoaderLi = null;
   
-  GDrive.lastFolderId = folderId;
-  localStorage.setItem('nkioi-gdrive-last-folder-id', folderId);
-  updateBreadcrumb();
+  if (!isNextPage) {
+    loader.style.display = 'flex';
+    list.innerHTML = '';
+    GDrive.nextPageToken = null;
+    GDrive.isLoadingMore = false;
+    
+    GDrive.lastFolderId = folderId;
+    localStorage.setItem('nkioi-gdrive-last-folder-id', folderId);
+    updateBreadcrumb();
+  } else {
+    GDrive.isLoadingMore = true;
+    moreLoaderLi = document.createElement('li');
+    moreLoaderLi.className = 'picker-item picker-more-loader';
+    moreLoaderLi.style.justifyContent = 'center';
+    moreLoaderLi.style.padding = '15px';
+    moreLoaderLi.innerHTML = `
+      <div class="loader-spinner mini" style="margin-right: 8px; width: 16px; height: 16px; border-width: 2px; border: 2px solid var(--primary-strawberry); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+      <span style="font-size: 0.85rem; color: var(--text-secondary);">추가 목록 불러오는 중...</span>
+    `;
+    list.appendChild(moreLoaderLi);
+    // 스크롤을 맨 아래로 내려서 로딩 상태를 표시
+    if (DOM.pickerListContainer) {
+      DOM.pickerListContainer.scrollTop = DOM.pickerListContainer.scrollHeight;
+    }
+  }
 
   try {
     const q = `'${folderId}' in parents and trashed = false and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
-    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size)&orderBy=folder,name&pageSize=100`;
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size)&orderBy=folder,name&pageSize=100`;
+    
+    if (isNextPage && GDrive.nextPageToken) {
+      url += `&pageToken=${encodeURIComponent(GDrive.nextPageToken)}`;
+    }
     
     const response = await fetch(url, {
       headers: {
@@ -1336,7 +1367,6 @@ async function loadFolderContents(folderId) {
 
     if (!response.ok) {
       if (response.status === 401) {
-        // 토큰 만료
         logoutGDrive();
         DOM.gdrivePickerModal.classList.remove('active');
         alert("구글 인증 세션이 만료되었습니다. 다시 로그인해 주세요.");
@@ -1347,20 +1377,35 @@ async function loadFolderContents(folderId) {
 
     const data = await response.json();
     const files = data.files || [];
+    GDrive.nextPageToken = data.nextPageToken || null;
 
-    if (files.length === 0) {
+    // 더 보기 로더 제거
+    if (moreLoaderLi) {
+      moreLoaderLi.remove();
+      moreLoaderLi = null;
+    }
+
+    if (!isNextPage && files.length === 0) {
       list.innerHTML = `<li class="picker-empty-msg">이 폴더에 지원되는 만화책 파일이 없습니다.</li>`;
       return;
     }
+
+    // 만약 실시간 필터링 중일 수 있으므로, 현재 검색어가 입력되어 있는지 파악
+    const searchInput = document.getElementById('picker-search-input');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
     files.forEach(file => {
       const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
       const li = document.createElement('li');
       li.className = 'picker-item';
       
+      // 검색 키워드가 있는 상태에서 추가 로딩이 되었을 때의 필터링 대응
+      if (keyword && !file.name.toLowerCase().includes(keyword)) {
+        li.style.setProperty('display', 'none', 'important');
+      }
+
       const icon = isFolder ? '📁' : '📚';
       
-      // 파일 크기 포맷
       let sizeStr = '';
       if (!isFolder && file.size) {
         const sizeBytes = parseInt(file.size, 10);
@@ -1384,16 +1429,15 @@ async function loadFolderContents(folderId) {
           GDrive.folderPathHistory.push({ id: file.id, name: file.name });
           await loadFolderContents(file.id);
         } else {
-          // 모바일 기기의 브라우저 XHR 메모리 크래시 방지 세이프가드 (250MB 제한)
           const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-          const fileSizeLimit = 250 * 1024 * 1024; // 250MB
+          const fileSizeLimit = 500 * 1024 * 1024;
           
           if (isMobile && file.size && parseInt(file.size, 10) > fileSizeLimit) {
-            alert(`[대용량 다운로드 제한]\n\n모바일 브라우저의 물리적 메모리 제한으로 인해, 구글 드라이브에서 250MB를 초과하는 대용량 파일을 웹앱으로 직접 다운로드할 수 없습니다.\n\n구글 드라이브 앱 등에서 기기 내에 파일을 먼저 저장(다운로드)하신 후, 메인 화면의 '기기에서 불러오기' 기능을 이용해 감상해 주시기 바랍니다.`);
-            return;
+            const sizeMB = (parseInt(file.size, 10) / (1024 * 1024)).toFixed(0);
+            const proceed = confirm(`[대용량 파일 경고]\n\n선택하신 파일의 크기가 ${sizeMB}MB로 매우 큽니다.\n\n모바일 브라우저의 메모리 한계로 인해 다운로드 중 앱이 튕기거나 새로고침될 수 있습니다. 계속 다운로드를 진행하시겠습니까?`);
+            if (!proceed) return;
           }
 
-          // 파일 다운로드 시작
           DOM.gdrivePickerModal.classList.remove('active');
           await handleGDriveFileDownload(file.id, file.name);
         }
@@ -1404,9 +1448,17 @@ async function loadFolderContents(folderId) {
 
   } catch (err) {
     console.error("폴더 목록 로드 실패:", err);
-    list.innerHTML = `<li class="picker-empty-msg" style="color: #dc3545;">목록 로드 중 오류가 발생했습니다.<br>${err.message}</li>`;
+    if (!isNextPage) {
+      list.innerHTML = `<li class="picker-empty-msg" style="color: #dc3545;">목록 로드 중 오류가 발생했습니다.<br>${err.message}</li>`;
+    } else {
+      alert("추가 목록 로딩 중 오류가 발생했습니다: " + err.message);
+    }
   } finally {
+    if (moreLoaderLi) {
+      moreLoaderLi.remove();
+    }
     loader.style.display = 'none';
+    GDrive.isLoadingMore = false;
   }
 }
 
@@ -1565,6 +1617,18 @@ function initEventListeners() {
       items.forEach(item => {
         item.style.setProperty('display', 'flex', 'important');
       });
+    });
+  }
+
+  // F. 구글 드라이브 피커 무한 스크롤 이벤트 추가
+  if (DOM.pickerListContainer) {
+    DOM.pickerListContainer.addEventListener('scroll', () => {
+      if (GDrive.nextPageToken && !GDrive.isLoadingMore) {
+        const { scrollTop, scrollHeight, clientHeight } = DOM.pickerListContainer;
+        if (scrollTop + clientHeight >= scrollHeight - 20) {
+          loadFolderContents(GDrive.lastFolderId, true);
+        }
+      }
     });
   }
 
