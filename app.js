@@ -172,16 +172,24 @@ function parseComicFileName(fileName) {
         
         if (sangPattern.test(postText)) {
           val += 0.1;
-          raw += postText.match(sangPattern)[0];
+          const match = postText.match(sangPattern);
+          const matchIndex = postText.indexOf(match[0]);
+          raw += postText.substring(0, matchIndex + match[0].length);
         } else if (sangPattern.test(preText)) {
           val += 0.1;
-          raw = preText.match(sangPattern)[0] + raw;
+          const match = preText.match(sangPattern);
+          const matchIndex = preText.indexOf(match[0]);
+          raw = preText.substring(matchIndex) + raw;
         } else if (haPattern.test(postText)) {
           val += 0.2;
-          raw += postText.match(haPattern)[0];
+          const match = postText.match(haPattern);
+          const matchIndex = postText.indexOf(match[0]);
+          raw += postText.substring(0, matchIndex + match[0].length);
         } else if (haPattern.test(preText)) {
           val += 0.2;
-          raw = preText.match(haPattern)[0] + raw;
+          const match = preText.match(haPattern);
+          const matchIndex = preText.indexOf(match[0]);
+          raw = preText.substring(matchIndex) + raw;
         }
         
         return { val, raw };
