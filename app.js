@@ -90,31 +90,6 @@ function parseComicFileName(fileName) {
   let cleanName = fileName.replace(/\.[^/.]+$/, "").trim();
   cleanName = cleanName.replace(/^['"]+|['"]+$/g, "").trim();
   
-  // 날짜 숫자 필터링 헬퍼: 연도, 월.일, 6자리 날짜 등은 권수로 사용하지 않음
-  function isDateNumber(val) {
-    const cleanVal = String(val).trim();
-    // 1. 4자리 정수 (예: 2024)
-    if (/^\d{4}$/.test(cleanVal)) return true;
-    // 2. 월.일 소수 형식 (예: 04.25, 12.31, 5.03) -> 1~12월, 1~31일 범위
-    const dateParts = cleanVal.split('.');
-    if (dateParts.length === 2) {
-      const m = parseInt(dateParts[0], 10);
-      const d = parseInt(dateParts[1], 10);
-      if (!isNaN(m) && !isNaN(d) && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-        return true;
-      }
-    }
-    // 3. 6자리 정수 (예: 240425) -> YYMMDD 형식의 날짜로 유추
-    if (/^\d{6}$/.test(cleanVal)) {
-      const mm = parseInt(cleanVal.substring(2, 4), 10);
-      const dd = parseInt(cleanVal.substring(4, 6), 10);
-      if (!isNaN(mm) && !isNaN(dd) && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
-        return true;
-      }
-    }
-    return false;
-  }
-  
   let author = "작자미상";
   let title = cleanName;
   let volume = 1;
@@ -134,8 +109,14 @@ function parseComicFileName(fileName) {
     }
   }
 
-  // 끝자리에 위치한 4자리 숫자(날짜) 제거 (예: " 2024", " (2024)", " [2024]")
-  workingName = workingName.replace(/[\s\-_]*[\(\[]?\d{4}[\)\]]?\s*$/, "").trim();
+  // [날짜 원천 제거] 월.일 날짜 패턴 제거 (예: "04.25", "12.31", "5.03") - 단, 뒤에 권/화가 있으면 보존
+  workingName = workingName.replace(/(?<=[^0-9]|^)(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12][0-9]|3[01])(?!\s*(?:권|화|vol|ch))(?=[^0-9]|$)/gi, "").trim();
+  
+  // [날짜 원천 제거] 6자리 날짜 패턴 제거 (예: "240425") - 단, 뒤에 권/화가 있으면 보존
+  workingName = workingName.replace(/(?<=[^0-9]|^)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])(?!\s*(?:권|화|vol|ch))(?=[^0-9]|$)/gi, "").trim();
+
+  // [날짜 원천 제거] 4자리 연도 제거 (예: "2024")
+  workingName = workingName.replace(/(?<=[^0-9]|^)\d{4}(?!\s*(?:권|화|vol|ch))(?=[^0-9]|$)/gi, "").trim();
   
   // 앞부분에 "숫자 + 구분자"가 있는지 검사 (예: "1 봄의 잔물결", "2 - 겨울의 잔물결", "1.5 봄의 잔물결")
   // 단, 뒤쪽에 명시적인 권수 표현이 있다면 앞의 숫자는 무시함
@@ -144,7 +125,7 @@ function parseComicFileName(fileName) {
   
   const leadingNumMatch = workingName.match(/^(\d+(?:\.\d+)?)(?:\s*[\.\-\_]\s*|\s+)(.*)$/);
   
-  if (leadingNumMatch && !hasExplicitVolumeLater && !isDateNumber(leadingNumMatch[1])) {
+  if (leadingNumMatch && !hasExplicitVolumeLater) {
     volume = parseFloat(leadingNumMatch[1]);
     title = leadingNumMatch[2].trim();
     isVolumeDetected = true;
@@ -182,7 +163,7 @@ function parseComicFileName(fileName) {
       if (!text) return null;
       
       const koMatch = text.match(/(?:제\s*)?(\d+(?:\.\d+)?)\s*(?:권|화)/i);
-      if (koMatch && !isDateNumber(koMatch[1])) {
+      if (koMatch) {
         let val = parseFloat(koMatch[1]);
         let raw = koMatch[0];
         
@@ -224,24 +205,20 @@ function parseComicFileName(fileName) {
       }
       
       const enMatch = text.match(/(?:vol(?:\. |ume)?|v|ch(?:apter)?\.?)\s*(\d+(?:\.\d+)?)/i);
-      if (enMatch && !isDateNumber(enMatch[1])) {
+      if (enMatch) {
         return { val: parseFloat(enMatch[1]), raw: enMatch[0] };
       }
       
       const sepMatch = text.match(/[-_\s]+(\d+(?:\.\d+)?)\s*$/);
       if (sepMatch) {
         const valStr = sepMatch[1];
-        if (!isDateNumber(valStr)) {
-          return { val: parseFloat(valStr), raw: sepMatch[0] };
-        }
+        return { val: parseFloat(valStr), raw: sepMatch[0] };
       }
       
       const lastNumMatch = text.match(/(\d+(?:\.\d+)?)\s*$/);
       if (lastNumMatch) {
         const valStr = lastNumMatch[1];
-        if (!isDateNumber(valStr)) {
-          return { val: parseFloat(valStr), raw: lastNumMatch[0] };
-        }
+        return { val: parseFloat(valStr), raw: lastNumMatch[0] };
       }
       
       return null;
