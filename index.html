@@ -243,6 +243,12 @@
           </select>
         </div>
 
+        <!-- 글로벌 검색 상태 인디케이터 (디버깅 및 로딩 상태 감지용) -->
+        <div id="picker-global-status" class="picker-global-status" style="display: none; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background-color: rgba(74, 114, 220, 0.05); padding: 8px; border-radius: 10px; margin-bottom: 10px; border: 1px dashed rgba(74, 114, 220, 0.15);">
+          <div class="loader-spinner mini" style="width: 12px; height: 12px; border-width: 1.5px; margin-right: 6px; border: 1.5px solid var(--primary-strawberry); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <span id="picker-global-status-text">드라이브 전체 파일 검색 인덱싱 중...</span>
+        </div>
+
         <!-- 폴더 이동 네비게이션 경로 -->
         <div class="picker-breadcrumb" id="picker-breadcrumb">
           <span class="breadcrumb-item" data-folder-id="root">My Drive</span>

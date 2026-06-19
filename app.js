@@ -83,7 +83,9 @@ const DOM = {
   pickerFileList: document.getElementById('picker-file-list'),
   pickerLoader: document.getElementById('picker-loader'),
   pickerListContainer: document.querySelector('.picker-list-container'),
-  pickerSortSelect: document.getElementById('picker-sort-select')
+  pickerSortSelect: document.getElementById('picker-sort-select'),
+  pickerGlobalStatus: document.getElementById('picker-global-status'),
+  pickerGlobalStatusText: document.getElementById('picker-global-status-text')
 };
 
 // --- 3. 지능형 파일명/메타데이터 분석 정규식 파서 ---
@@ -1334,6 +1336,18 @@ async function loadGlobalComicFiles() {
   GDrive.isGlobalLoading = true;
   GDrive.globalComicFiles = [];
   
+  if (DOM.pickerGlobalStatus && DOM.pickerGlobalStatusText) {
+    DOM.pickerGlobalStatus.style.backgroundColor = 'rgba(74, 114, 220, 0.05)';
+    DOM.pickerGlobalStatus.style.color = 'var(--text-secondary)';
+    DOM.pickerGlobalStatus.style.borderColor = 'rgba(74, 114, 220, 0.15)';
+    DOM.pickerGlobalStatus.style.borderStyle = 'dashed';
+    const spinner = DOM.pickerGlobalStatus.querySelector('.loader-spinner');
+    if (spinner) spinner.style.display = 'block';
+    
+    DOM.pickerGlobalStatusText.textContent = "드라이브 전체 파일 검색 인덱싱 중...";
+    DOM.pickerGlobalStatus.style.display = 'flex';
+  }
+  
   try {
     const q = `trashed = false and (mimeType = 'application/zip' or mimeType = 'application/x-zip-compressed' or mimeType = 'application/x-zip' or mimeType = 'application/x-cbz' or mimeType = 'application/vnd.rar' or mimeType = 'application/x-rar-compressed' or name contains '.zip' or name contains '.cbz' or name contains '.rar' or name contains '.cbr')`;
     
@@ -1354,18 +1368,26 @@ async function loadGlobalComicFiles() {
       });
       
       if (!response.ok) {
-        throw new Error("글로벌 목록 패치 실패");
+        throw new Error(`API 오류 (HTTP ${response.status})`);
       }
       
       const data = await response.json();
       const files = data.files || [];
       accumulated.push(...files);
       
+      if (DOM.pickerGlobalStatusText) {
+        DOM.pickerGlobalStatusText.textContent = `드라이브 전체 파일 검색 인덱싱 중... (${accumulated.length}개 완료)`;
+      }
+      
       nextPageToken = data.nextPageToken || null;
       loopCount++;
-    } while (nextPageToken && loopCount < 20); // 최대 2,000개
+    } while (nextPageToken && loopCount < 20);
     
     GDrive.globalComicFiles = accumulated;
+    
+    if (DOM.pickerGlobalStatus) {
+      DOM.pickerGlobalStatus.style.display = 'none'; // 성공 시 숨김
+    }
     
     // 만약 전체 로드가 끝났을 때 사용자가 이미 무언가 타이핑 중이었다면 즉시 반영해 줌
     const searchInput = document.getElementById('picker-search-input');
@@ -1374,6 +1396,15 @@ async function loadGlobalComicFiles() {
     }
   } catch (err) {
     console.error("구글 드라이브 글로벌 만화 캐싱 실패:", err);
+    if (DOM.pickerGlobalStatus && DOM.pickerGlobalStatusText) {
+      DOM.pickerGlobalStatusText.textContent = `전체 인덱싱 실패: ${err.message}`;
+      DOM.pickerGlobalStatus.style.backgroundColor = 'rgba(220, 53, 69, 0.05)';
+      DOM.pickerGlobalStatus.style.color = '#dc3545';
+      DOM.pickerGlobalStatus.style.borderColor = 'rgba(220, 53, 69, 0.2)';
+      DOM.pickerGlobalStatus.style.borderStyle = 'solid';
+      const spinner = DOM.pickerGlobalStatus.querySelector('.loader-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
   } finally {
     GDrive.isGlobalLoading = false;
   }
