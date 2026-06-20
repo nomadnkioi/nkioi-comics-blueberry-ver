@@ -41,6 +41,20 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; /* Safari */
+  user-select: none;         /* Standard */
+}
+
+/* 입력 폼 필드는 선택 및 입력 가능하도록 설정 */
+input, textarea, select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 이미지 드래그 방지 */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 
 body {

@@ -861,6 +861,11 @@ function startReading(volume, page) {
   DOM.libraryScreen.classList.remove('active');
   DOM.viewerScreen.classList.add('active');
   
+  // 뒤로가기 제스처 방지를 위해 history state 추가 (이미 뷰어 상태가 아닐 때만)
+  if (history.state?.screen !== 'viewer') {
+    history.pushState({ screen: 'viewer' }, '');
+  }
+  
   loadVolumeAndPage();
 }
 
@@ -988,7 +993,7 @@ function updateGaugeProgress() {
 }
 
 // 뷰어 나가기 (서재 복귀)
-function exitViewer() {
+function exitViewer(fromPopState = false) {
   saveProgress();
   
   // 현재 도서의 메모리 안전 해제
@@ -1025,6 +1030,12 @@ function exitViewer() {
   DOM.libraryScreen.classList.add('active');
   state.currentBookId = null;
   renderBookshelf(); // 진행도 갱신을 위한 다시 렌더링
+
+  // 브라우저의 뒤로가기 제스처가 아닌 홈 버튼을 수동으로 클릭해서 나가는 경우에만 history.back() 실행
+  const isPop = fromPopState === true;
+  if (!isPop && history.state?.screen === 'viewer') {
+    history.back();
+  }
 }
 
 // --- 9. LocalStorage 독서 진행 관리 로직 ---
@@ -1046,6 +1057,12 @@ function getSavedProgress(bookId) {
 function initZoomEngine() {
   const viewport = DOM.comicViewport;
   const img = DOM.comicImage;
+  
+  // 두 손가락 줌-팬 연동을 위한 좌표 상태
+  let pinchStartCenterX = 0;
+  let pinchStartCenterY = 0;
+  let pinchStartPanX = 0;
+  let pinchStartPanY = 0;
   
   // 마우스/터치 드래그 탐색 (Pan)
   viewport.addEventListener('mousedown', (e) => {
@@ -1074,6 +1091,12 @@ function initZoomEngine() {
       // 핀치 줌 스타트
       state.pinchStartDist = getTouchDistance(e.touches[0], e.touches[1]);
       state.pinchStartScale = state.zoomScale;
+      
+      // 두 손가락 터치 중심점 및 시작 기준 팬 좌표 기록
+      pinchStartCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      pinchStartCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      pinchStartPanX = state.panX;
+      pinchStartPanY = state.panY;
     } else if (e.touches.length === 1 && state.zoomScale > 1) {
       // 싱글터치 드래그 이동 (Pan)
       state.isPanning = true;
@@ -1089,6 +1112,17 @@ function initZoomEngine() {
       if (state.pinchStartDist > 0) {
         const factor = newDist / state.pinchStartDist;
         state.zoomScale = Math.min(Math.max(state.pinchStartScale * factor, 1), 4); // 최대 4배 줌
+        
+        // 줌인 상태인 경우 두 손가락 움직임에 연동하여 팬(이동)도 동시 계산
+        if (state.zoomScale > 1) {
+          const currentCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const currentCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const deltaX = currentCenterX - pinchStartCenterX;
+          const deltaY = currentCenterY - pinchStartCenterY;
+          state.panX = pinchStartPanX + deltaX;
+          state.panY = pinchStartPanY + deltaY;
+        }
+        
         applyTransform();
       }
     } else if (e.touches.length === 1 && state.isPanning) {
@@ -1830,6 +1864,14 @@ function initEventListeners() {
       startReading(progress.volume, progress.page);
     } else {
       startReading(1, 1);
+    }
+  });
+
+  // I. 뒤로가기 제스처(popstate) 제어
+  window.addEventListener('popstate', (event) => {
+    // 뷰어가 켜져있고 책이 선택된 상태에서 뒤로가기가 발생하면, 책을 덮고 서재로 안전하게 나감
+    if (state.currentBookId && DOM.viewerScreen.classList.contains('active')) {
+      exitViewer(true);
     }
   });
 }
