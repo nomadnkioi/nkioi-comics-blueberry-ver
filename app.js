@@ -346,8 +346,8 @@ async function splitDoublePageImageIfNeeded(blobUrl) {
       const ratio = img.naturalWidth / img.naturalHeight;
       console.log(`[분할 엔진] 이미지 분석 완료 - 해상도: ${img.naturalWidth}x${img.naturalHeight}, 비율: ${ratio.toFixed(2)}, 대상 URL: ${blobUrl.substring(0, 30)}...`);
       
-      if (ratio >= 1.3) {
-        console.log(`[분할 엔진] 가로 비율이 1.3 이상이므로 분할을 진행합니다.`);
+      if (ratio >= 1.2) {
+        console.log(`[분할 엔진] 가로 비율이 1.2 이상이므로 분할을 진행합니다.`);
         const width = img.naturalWidth;
         const height = img.naturalHeight;
         const halfWidth = Math.floor(width / 2);
