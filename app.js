@@ -116,7 +116,7 @@ function parseComicFileName(fileName) {
 
   // 1.5. "부" 패턴 탐지 및 처리 (예: "호스트 시리즈 5부 - 또하나의 시작 02")
   const partMatch = workingName.match(/(\d+)\s*부/);
-  const hasExtraKeyword = /(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(workingName);
+  const isExtraFile = /(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(workingName);
   
   if (partMatch) {
     const partVal = parseInt(partMatch[1], 10);
@@ -142,7 +142,7 @@ function parseComicFileName(fileName) {
     const result = { author, title, volume, isVolumeDetected, unit };
     console.log(`[파서 디버그 - 부 패턴] 파일명: "${fileName}" -> 파싱결과:`, result);
     return result;
-  } else if (hasExtraKeyword && !workingName.match(/(\d+)\s*(?:권|화|부)/)) {
+  } else if (isExtraFile && !workingName.match(/(\d+)\s*(?:권|화|부)/)) {
     // 다른 권수 정보 없이 번외/외전만 있는 경우 최하단 정렬을 위해 999로 설정
     volume = 999;
     unit = "권";
