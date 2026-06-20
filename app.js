@@ -342,10 +342,12 @@ function timeoutPromise(promise, ms, rejectMessage = "요청 시간이 초과되
 async function splitDoublePageImageIfNeeded(blobUrl) {
   return new Promise((resolve) => {
     const img = new Image();
-    img.src = blobUrl;
     img.onload = () => {
       const ratio = img.naturalWidth / img.naturalHeight;
+      console.log(`[분할 엔진] 이미지 분석 완료 - 해상도: ${img.naturalWidth}x${img.naturalHeight}, 비율: ${ratio.toFixed(2)}, 대상 URL: ${blobUrl.substring(0, 30)}...`);
+      
       if (ratio >= 1.3) {
+        console.log(`[분할 엔진] 가로 비율이 1.3 이상이므로 분할을 진행합니다.`);
         const width = img.naturalWidth;
         const height = img.naturalHeight;
         const halfWidth = Math.floor(width / 2);
@@ -371,16 +373,19 @@ async function splitDoublePageImageIfNeeded(blobUrl) {
           const rightUrl = URL.createObjectURL(rightBlob);
           const leftUrl = URL.createObjectURL(leftBlob);
           resolve([rightUrl, leftUrl]);
-        }).catch(() => {
+        }).catch((err) => {
+          console.error("[분할 엔진] 캔버스 변환 중 오류:", err);
           resolve([blobUrl]);
         });
       } else {
         resolve([blobUrl]);
       }
     };
-    img.onerror = () => {
+    img.onerror = (err) => {
+      console.error("[분할 엔진] 이미지 로드 중 에러 발생:", err);
       resolve([blobUrl]);
     };
+    img.src = blobUrl; // onload/onerror 바인딩 후에 src 대입하여 레이스 컨디션 방지
   });
 }
 
