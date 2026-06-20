@@ -114,6 +114,47 @@ function parseComicFileName(fileName) {
     }
   }
 
+  // 1.5. "부" 패턴 탐지 및 처리 (예: "호스트 시리즈 5부 - 또하나의 시작 02")
+  const partMatch = workingName.match(/(\d+)\s*부/);
+  const hasExtraKeyword = /(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/i.test(workingName);
+  
+  if (partMatch) {
+    const partVal = parseInt(partMatch[1], 10);
+    // 파일명 끝부분의 숫자 감지 (괄호 제거 후)
+    let endText = workingName.replace(/[\(\[][^\)\]]+[\)\]]/g, " ").trim();
+    const trailingMatch = endText.match(/(\d+)\s*$/);
+    
+    if (trailingMatch && parseInt(trailingMatch[1], 10) !== partVal) {
+      const subVal = parseInt(trailingMatch[1], 10);
+      volume = partVal + (subVal / 100);
+      // 타이틀 정제: '5부', '02' 제거
+      title = workingName.replace(partMatch[0], "").replace(trailingMatch[0], "").replace(/\s*-\s*$/, "").trim();
+    } else {
+      volume = partVal;
+      title = workingName.replace(partMatch[0], "").trim();
+    }
+    
+    // 특수 문자 및 대시 정제
+    title = title.replace(/^[-_\s\:\(\)]+/, "").replace(/[-_\s\:\(\)]+$/, "").trim();
+    unit = "부";
+    isVolumeDetected = true;
+    
+    const result = { author, title, volume, isVolumeDetected, unit };
+    console.log(`[파서 디버그 - 부 패턴] 파일명: "${fileName}" -> 파싱결과:`, result);
+    return result;
+  } else if (hasExtraKeyword && !workingName.match(/(\d+)\s*(?:권|화|부)/)) {
+    // 다른 권수 정보 없이 번외/외전만 있는 경우 최하단 정렬을 위해 999로 설정
+    volume = 999;
+    unit = "권";
+    isVolumeDetected = true;
+    title = workingName.replace(/(?:번외|외전|특별편|부록|\bsp\b|\bextra\b|\bside\b|비하인드)/gi, "").trim();
+    title = title.replace(/^[-_\s\:\(\)]+/, "").replace(/[-_\s\:\(\)]+$/, "").trim();
+    
+    const result = { author, title, volume, isVolumeDetected, unit };
+    console.log(`[파서 디버그 - 번외 패턴] 파일명: "${fileName}" -> 파싱결과:`, result);
+    return result;
+  }
+
   // [날짜 원천 제거] 월.일 날짜 패턴 제거 (예: "04.25", "12.31", "5.03") - 단, 뒤에 권/화가 있으면 보존
   workingName = workingName.replace(/(?<=[^0-9]|^)(?:0?[1-9]|1[0-2])\.(?:0?[1-9]|[12][0-9]|3[01])(?!\s*(?:권|화|vol|ch))(?=[^0-9]|$)/gi, "").trim();
   
@@ -872,18 +913,34 @@ function startReading(volume, page) {
 // --- 6.5. 권수 레이블 및 정렬용 포맷터 ---
 function formatVolumeName(volNum, title, unit = "권") {
   const num = Number(volNum);
-  const base = Math.floor(num);
-  const tolerance = 0.001;
-  const decimal = num - base;
   
-  if (Math.abs(decimal - 0.1) < tolerance) {
-    return `${base}${unit} 상`;
+  // 990 이상인 경우 번외/외전 처리
+  if (num >= 990) {
+    const base = Math.floor(num);
+    const decimal = Math.round((num - base) * 100);
+    return decimal > 0 ? `번외 ${decimal}` : `번외`;
   }
-  if (Math.abs(decimal - 0.2) < tolerance) {
-    return `${base}${unit} 하`;
-  }
-  if (Math.abs(decimal - 0.5) < tolerance) {
-    return `${base}${unit} 외전`;
+
+  const base = Math.floor(num);
+  const decimal = Math.round((num - base) * 100);
+  const tolerance = 0.001;
+  const decDiff = num - base;
+  
+  if (decimal > 0) {
+    // 0.05 단위 또는 일반 소수점 이하 두자리인 경우 (예: 3.01 -> 3부 1권)
+    if (decimal % 10 !== 0 || decimal < 10) {
+      return `${base}부 ${decimal}권`;
+    }
+    
+    if (Math.abs(decDiff - 0.1) < tolerance) {
+      return `${base}${unit} 상`;
+    }
+    if (Math.abs(decDiff - 0.2) < tolerance) {
+      return `${base}${unit} 하`;
+    }
+    if (Math.abs(decDiff - 0.5) < tolerance) {
+      return `${base}${unit} 외전`;
+    }
   }
   
   if (Number.isInteger(num)) {
