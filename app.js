@@ -1365,6 +1365,38 @@ async function handleGDriveButtonClick() {
 // 커스텀 피커 경로 히스토리
 GDrive.folderPathHistory = [];
 
+// 구글 드라이브 폴더의 실제 상위 경로(부모 폴더 트리)를 역추적하여 히스토리를 구성하는 헬퍼 함수
+async function buildFolderPathHistory(folderId) {
+  if (!folderId || folderId === 'root') {
+    return [{ id: 'root', name: 'My Drive' }];
+  }
+  
+  const history = [];
+  let currentId = folderId;
+  
+  try {
+    // 부모 폴더가 없을 때까지 또는 root에 도달할 때까지 최대 5단계 역추적
+    let depth = 0;
+    while (currentId && currentId !== 'root' && depth < 5) {
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${currentId}?fields=name,parents`, {
+        headers: {
+          'Authorization': `Bearer ${GDrive.accessToken}`
+        }
+      });
+      if (!response.ok) break;
+      const data = await response.json();
+      history.unshift({ id: currentId, name: data.name });
+      currentId = (data.parents && data.parents.length > 0) ? data.parents[0] : null;
+      depth++;
+    }
+  } catch (err) {
+    console.error("상위 경로 역추적 중 에러:", err);
+  }
+  
+  history.unshift({ id: 'root', name: 'My Drive' });
+  return history;
+}
+
 async function openGooglePicker() {
   // 검색창 초기화
   const searchInput = document.getElementById('picker-search-input');
@@ -1375,22 +1407,16 @@ async function openGooglePicker() {
   GDrive.allFiles = [];
   GDrive.globalComicFiles = [];
 
-  // [버그 수정] 시작 시 GDrive.lastFolderId가 root가 아니면 root에서 시작해서 GDrive.lastFolderId까지 타고 들어가거나,
-  // 최소한 root -> GDrive.lastFolderId 구조의 계층적 히스토리를 생성해 줍니다.
   const lastId = GDrive.lastFolderId || 'root';
-  if (lastId === 'root') {
-    GDrive.folderPathHistory = [{ id: 'root', name: 'My Drive' }];
-  } else {
-    // 이전 폴더로 원활히 돌아갈 수 있도록 최상위 'My Drive'와 '이전 폴더'를 배열에 확실히 순서대로 밀어넣습니다.
-    GDrive.folderPathHistory = [
-      { id: 'root', name: 'My Drive' },
-      { id: lastId, name: '이전 폴더' }
-    ];
-  }
   
   DOM.gdrivePickerModal.classList.add('active');
   
-  // 동시에 현재 폴더 콘텐츠 브라우징 로드 (글로벌 캐싱 호출 loadGlobalComicFiles 전면 제거)
+  // 로딩 활성화 후 실제 구글 드라이브 상위 경로를 탐색해 브레드크럼을 완성합니다.
+  const loader = DOM.pickerLoader;
+  if (loader) loader.style.display = 'flex';
+  
+  GDrive.folderPathHistory = await buildFolderPathHistory(lastId);
+  
   await loadFolderContents(lastId);
 }
 
